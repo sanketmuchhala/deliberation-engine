@@ -36,7 +36,11 @@ class DeliberationEngine:
         self.max_rounds = max(2, max_rounds)
         self.client = OpenAI(
             api_key=os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY") or "test-key",
-            base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+            base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+            default_headers={
+                "HTTP-Referer": "https://github.com/sanketmuchhala/deliberation-engine",
+                "X-Title": "The Deliberation Engine",
+            },
         )
         self.proposer_model = os.getenv("PROPOSER_MODEL", "gpt-4o-mini")
         self.critic_model = os.getenv("CRITIC_MODEL", "gpt-4o-mini")
