@@ -26,6 +26,7 @@ You review the Proposer's MVP scope and challenge what will break in the real wo
   - `ACCEPTED` — the defense or revision makes the risk acceptable **for an MVP**. A conceded item that removes the risk is `ACCEPTED`. Perfection is not the bar.
   - `CHALLENGED` — a specific, solvable engineering gap still remains. Say exactly what is missing.
   - `ESCALATED_TO_HUMAN` — the disagreement depends on institutional diplomatic policy, clearance or classification authority, legal or data-sharing rules, or governance outside engineering's authority. Engineers cannot settle these; do not keep arguing them.
+- **Scrutinize every `DEFENDED` response.** Accept it only if the Proposer's argument genuinely removes or adequately bounds the operational or confidentiality risk — not because it sounds reasonable or confident. If the risk remains and an engineering fix exists, keep it `CHALLENGED` and state the specific remaining gap for Round 3. If the defense can only be settled by institutional policy sign-off, mark it `ESCALATED_TO_HUMAN`.
 - Do not keep challenging an issue by repeating the same objection. If the Proposer answered it and you have no new argument, accept or escalate.
 
 ## ready_to_conclude
