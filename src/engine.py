@@ -65,7 +65,6 @@ class DeliberationEngine:
 
         ledger: dict[str, IssueLedgerEntry] = {}
         rounds_log: list[dict] = []
-        termination_reason = "CONTINUE"
 
         for round_no in range(1, self.max_rounds + 1):
             proposer_ctx = (
@@ -79,12 +78,13 @@ class DeliberationEngine:
             )
 
             for resp in p_turn.challenge_responses:
-                if resp.issue_id in ledger:
-                    entry = ledger[resp.issue_id]
-                    entry.proposer_last_move = ChallengeState(resp.move)
-                    entry.current_state = ChallengeState(resp.move)
-                    entry.proposer_confidence = resp.confidence
-                    entry.history.append(f"R{round_no}:Proposer:{resp.move}")
+                entry = ledger.get(resp.issue_id)
+                if entry is None or entry.current_state in TERMINAL_STATES:
+                    continue
+                entry.proposer_last_move = ChallengeState(resp.move)
+                entry.current_state = ChallengeState(resp.move)
+                entry.proposer_confidence = resp.confidence
+                entry.history.append(f"R{round_no}:Proposer:{resp.move}")
 
             critic_ctx = (
                 f"FEATURE REQUEST:\n{feature_request}\n\n"
@@ -109,6 +109,8 @@ class DeliberationEngine:
                     )
                 else:
                     entry = ledger[ch.issue_id]
+                    if entry.current_state in TERMINAL_STATES:
+                        continue
                     entry.critic_confidence = ch.confidence
                     if round_no == 1:
                         entry.current_state = ChallengeState.CHALLENGED
@@ -122,6 +124,12 @@ class DeliberationEngine:
                             entry.current_state = ChallengeState.CHALLENGED
                     entry.history.append(f"R{round_no}:Critic:{entry.current_state.value}")
 
+            mentioned = {ch.issue_id for ch in c_turn.challenges}
+            for entry in ledger.values():
+                if entry.current_state == ChallengeState.CONCEDED and entry.issue_id not in mentioned:
+                    entry.current_state = ChallengeState.ACCEPTED
+                    entry.history.append(f"R{round_no}:Gate:CONCESSION_ACCEPTED")
+
             deadlocked_ids = []
             if round_no >= 3:
                 for entry in ledger.values():
@@ -134,18 +142,21 @@ class DeliberationEngine:
             all_terminal = bool(ledger) and all(e.current_state in TERMINAL_STATES for e in ledger.values())
 
             should_stop = False
+            termination_reason = "CONTINUE"
             if round_no < 2:
                 termination_reason = "ROUND_1_MINIMUM_LOCK"
             elif all_terminal and deadlocked_ids:
                 should_stop = True
                 termination_reason = f"DEADLOCK_ESCALATED_TO_HUMAN ({', '.join(deadlocked_ids)})"
-            elif all_terminal or (c_turn.ready_to_conclude and disagreement_score == 0.0):
+            elif all_terminal:
                 should_stop = True
-                termination_reason = "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED"
+                signal = "CRITIC_SIGNALED_CONVERGENCE" if c_turn.ready_to_conclude else "ALL_ISSUES_TERMINAL_GATE_CLOSE"
+                termination_reason = f"CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED ({signal})"
             elif round_no >= self.max_rounds:
                 for entry in ledger.values():
                     if entry.current_state not in TERMINAL_STATES:
                         entry.current_state = ChallengeState.ESCALATED_TO_HUMAN
+                        entry.history.append(f"R{round_no}:Gate:MAX_ROUNDS_ESCALATED")
                 disagreement_score = compute_disagreement(ledger)
                 should_stop = True
                 termination_reason = "MAX_ROUNDS_FAILSAFE_ESCALATED"
@@ -176,6 +187,10 @@ class DeliberationEngine:
         final_doc: FinalDecisionDocument = self._call_structured(
             self.summarizer_model, summarizer_sys, summary_ctx, FinalDecisionDocument
         )
+        final_doc.final_disagreement_score = rounds_log[-1]["disagreement_score"]
+        final_doc.proposer_confidence = p_turn.overall_confidence
+        final_doc.critic_confidence = c_turn.overall_confidence
+        final_doc.termination_reason = termination_reason
         return final_doc, {
             "feature_request": feature_request,
             "rounds": rounds_log,
