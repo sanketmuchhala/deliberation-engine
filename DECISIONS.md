@@ -35,7 +35,7 @@ $$D_r = \frac{1}{N} \sum_{i=1}^{N} w(s_{i,r}) \cdot (0.50 + 0.25 p_{i,r} + 0.25 
 Bounding the confidence multiplier to $[0.50, 1.00]$ guarantees that low agent confidence never masks an unresolved challenge; $D_r$ reaches $0.0$ if and only if every issue reaches a terminal state (`ACCEPTED` or `ESCALATED_TO_HUMAN`).
 
 ### Four-Tier Stopping Gate & Scripted Verification
-Commit `aba4f6d` was verified against 8 scripted edge-case scenarios:
+Commit `aba4f6d` was verified against 8 scripted edge-case scenarios (`tests/test_engine.py`, no API calls):
 1. **Round 1 Minimum Lock (`ROUND_1_MINIMUM_LOCK`):** Hard-blocks termination in Round 1 (`round_no < 2`) regardless of model flags; non-terminating subsequent rounds explicitly log `CONTINUE`.
 2. **Terminal State Immutability & Concession Closure:** Once an issue is `ACCEPTED` or `ESCALATED_TO_HUMAN`, neither agent can reopen it. A `CONCEDED` issue closes automatically unless the Critic re-challenges the concession.
 3. **Ledger Convergence & Critic Signal (`CRITIC_SIGNALED_CONVERGENCE` vs. `ALL_ISSUES_TERMINAL_GATE_CLOSE`):** The engine stops when every issue is terminal ($D_r = 0.0$). So that a hallucinated `ready_to_conclude=False` cannot trap a settled loop, the flag only records whether the Critic signaled convergence (Examples 1 and 2) or the ledger gate closed it.
@@ -50,7 +50,5 @@ Commit `aba4f6d` was verified against 8 scripted edge-case scenarios:
 
 ## 3. What I Would Do Differently With More Time
 
-1. **Replace the Hard Defense Floor with a Structured Complexity-Cost Rubric:**
-   The "defend at least 2" floor stopped Round-2 capitulation, but our golden traces showed the model treating it as an exact quota: it defended exactly 2 challenges in every example (2 of 4, 2 of 5, 2 of 5). With more time, I would replace the numeric floor with a deterministic **Complexity Impact Tag** (`ZERO_SCHEMA_CHANGE`, `NEW_COLUMN_OR_VIEW`, `NEW_TABLE_OR_UI_WORKFLOW`) on each Critic suggestion, instructing the Proposer to `DEFEND` any `NEW_TABLE_OR_UI_WORKFLOW` demand and judge the rest case by case.
-2. **Pre-Deliberation Persona Seeding:**
-   I would add a lightweight pre-Round-1 step that generates one-sentence friction notes from three distinct CRM personas (*Regional Coordinator*, *Project Manager*, and *Diplomatic Security Officer*) to seed the Critic's initial ledger with cross-role conflicts before deliberation begins.
+**Replace the Hard Defense Floor with a Structured Complexity-Cost Rubric.**
+The "defend at least 2" floor stopped Round-2 capitulation, but our golden traces showed the model treating it as an exact quota: it defended exactly 2 challenges in every example (2 of 4, 2 of 5, 2 of 5). With more time, I would replace the numeric floor with a deterministic **Complexity Impact Tag** (`ZERO_SCHEMA_CHANGE`, `NEW_COLUMN_OR_VIEW`, `NEW_TABLE_OR_UI_WORKFLOW`) on each Critic suggestion, instructing the Proposer to `DEFEND` any `NEW_TABLE_OR_UI_WORKFLOW` demand and judge the rest case by case.

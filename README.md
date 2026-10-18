@@ -49,6 +49,14 @@ python3 -m src.main --request "..." --output-dir runs/   # default outputs/
 
 With neither `--request` nor `--config`, it runs official example 1. Each round prints a Proposer panel and a Critic panel with the disagreement score and gate status. At the end it prints the decision document and writes `decision_doc.md` and `sample_trace.json` to the output directory.
 
+## Tests
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+Eight offline state-machine tests drive the engine with scripted Proposer and Critic turns (no API key needed). They cover convergence, deadlock escalation, terminal-state locking, concession handling, the gate-close fallback, the max-rounds failsafe, and the engine overwriting the Summarizer's metrics.
+
 ## Golden runs (`outputs/`)
 
 | Files | Request | Rounds | Disagreement score | Termination | Open questions |
@@ -64,5 +72,6 @@ Each example has a `_trace.json` (every round plus ledger snapshots), a `_decisi
 ```text
 prompts/   proposer.md, critic.md, summarizer.md
 src/       schemas.py (Pydantic contracts, state weights), engine.py (loop, ledger, gate), main.py (CLI)
+tests/     test_engine.py (offline state-machine tests)
 outputs/   golden runs
 ```
