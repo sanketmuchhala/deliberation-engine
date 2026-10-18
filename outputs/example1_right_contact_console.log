@@ -1,0 +1,405 @@
+────────────────────────────────────────── The Deliberation Engine ───────────────────────────────────────────
+Input Feature Request: We need a better way to track who is the right person to contact in each country.
+
+╭───────────────────────────────────── Round 1 · PROPOSER (Conf: 0.70) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Add a derived 'Recommended Contact' panel on the Country record that shows up to 3  │
+│ contacts ranked by a deterministic rule: (1) contacts linked to an active Mission or Project for that      │
+│ Country, (2) most recent Engagement date, (3) contact record not flagged inactive", "Show each recommended │
+│ contact with role/title, ministry, preferred channel, last engagement date, and the linked Mission/Project │
+│ that justified the ranking ('why this person')", "Add a single optional boolean 'primary_for_country' flag │
+│ on the existing Contact-Country link (no new table) that, if set, pins that contact to the top; otherwise  │
+│ ranking is fully automatic", "Add 'last_verified' timestamp on Contact, auto-updated whenever an           │
+│ Engagement is logged against that contact, with a visible 'stale' badge if older than 12 months", "Filter  │
+│ on the panel by topic via existing Project/Mission affiliation (e.g., 'contact for Mission X in Country    │
+│ Y') using existing links only", "Search from the Country page and global search: 'who do I contact in      │
+│ [Country] for [Project/Mission]' returning the same ranked list", 'Respect existing Country/Mission        │
+│ record-level access: users only see contacts they can already see today']                                  │
+│ Assumptions: ["A1: 'Right person' means the best current point of contact for a given country, optionally  │
+│ scoped by Mission or Project, not a single universal contact per country.", 'A2: Existing data             │
+│ (Contact–Country, Contact–Mission, Contact–Project links and Engagement history) is good enough to derive  │
+│ a useful recommendation without cleanup.', "A3: Recency of engagement and active Mission/Project linkage   │
+│ are acceptable proxies for 'right person' in v1.", 'A4: Primary users are Operations and Country           │
+│ Engagement staff who already have access to the relevant Country/Mission records; no new access rules are  │
+│ needed.', 'A5: Contact position changes (a person leaving a role) are not detected automatically in v1;    │
+│ staleness is surfaced via a badge, not resolved.', "A6: Whether a given person is appropriate to contact   │
+│ for a sensitive topic is a diplomatic/policy judgment outside the CRM's remit."]                           │
+│ Challenge Responses: []                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────── Round 1 · CRITIC (Conf: 0.75, Ready: False) ────────────────────────────────╮
+│ • [C1 -> A2] (CHALLENGED): Ranking by most recent Engagement date and active Mission linkage will surface  │
+│ people who have left their post. Example: a ministry liaison who attended three recent meetings resigns    │
+│ after a cabinet reshuffle. Nobody has logged a new engagement with the replacement, so the departed person │
+│ stays ranked #1 with a fresh-looking 'why this person' justification. Staff then send sensitive            │
+│ correspondence to a former official. Because last_verified is only updated by logging an Engagement, it    │
+│ also marks a departed person as recently verified. It measures activity, not whether the person still      │
+│ holds the role. Also, no cleanup of inactive flags or duplicate contacts is planned, so data quality       │
+│ across 100 countries is unproven.                                                                          │
+│   Eval: The Proposer admits in A5 that turnover is not detected and offers only a stale badge. The         │
+│ 12-month threshold is far too long for ministerial turnover. The ranking also presents confident 'why this │
+│ person' output on data that may be wrong.                                                                  │
+│ • [C2 -> A4] (CHALLENGED): Inheriting existing Country/Mission record-level access is not enough once      │
+│ contacts are aggregated into a derived panel, global search, and a 'who do I contact' query. Today a user  │
+│ may see a Country record without being able to browse its contacts, or may see a Mission without seeing    │
+│ every contact linked to it. A new ranked cross-record view, and the justification text (Mission/Project    │
+│ names, last engagement dates), can expose the existence of confidential missions or engagement history to  │
+│ staff who lack access to the underlying Mission or Engagement. Global search is the highest-risk path      │
+│ because it is often built on an index that bypasses record-level filters. A coordinator who can see        │
+│ Country X but not a confidential Mission Y could infer Y's existence and the named contact from the 'why   │
+│ this person' line. The 'zero instances in UAT' criterion cannot verify this unless it explicitly tests the │
+│ derived panel, search index, and justification strings.                                                    │
+│   Eval: The Proposer asserts that permissions are inherited but does not say how the derived panel, the    │
+│ search index, and the justification text enforce per-record and per-field access.                          │
+│ • [C3 -> A3] (CHALLENGED): The Proposer treats recency of engagement as a proxy for the 'right' contact.   │
+│ In practice the most-engaged contact is often a junior desk officer or an administrative assistant, while  │
+│ the decision-maker is engaged rarely. Rule (1) also lets any contact linked to an active Mission outrank   │
+│ everyone else, even if the link is stale (a Mission closed on paper but still marked active). A            │
+│ coordinator following the top-3 list for an urgent or sensitive matter reaches the wrong level and may     │
+│ bypass the correct ministry channel, a diplomatic misstep. There is also no handling of ties, contacts     │
+│ with no engagement history, or a country with more than three valid contacts. The 80% survey criterion is  │
+│ weak: it measures agreement with what users would have done anyway, not whether the contact was correct.   │
+│   Eval: A6 defers protocol and seniority to humans, but the panel is labelled 'Recommended Contact' with a │
+│ ranked list and no caveat. Users will treat it as authoritative, and fatigue sets in once the top          │
+│ suggestion proves wrong a few times. Staff then ignore it.                                                 │
+│ • [C4 -> A5] (CHALLENGED): The stale badge will fire on a large share of contacts, because last_verified   │
+│ updates only when an Engagement is logged. In a CRM covering ~100 countries, many valid contacts (for      │
+│ example, a stable head of a ministry department with only occasional contact) will show 'stale' after 12   │
+│ months, while departed officials with recent engagement show no badge. Once a large proportion of records  │
+│ carry the badge, staff will learn to ignore it, which is the alert-fatigue failure. The badge also never   │
+│ prompts action, since no verification workflow exists and no one owns the follow-up. It also does not      │
+│ account for our own coordinator turnover: when a Regional Coordinator leaves, their engagement logging     │
+│ stops and every contact they covered ages into stale together.                                             │
+│   Eval: The Proposer treats the badge as an 'honest signal', but it is a noisy signal with no owner and no │
+│ way to clear it except by logging an unrelated engagement. This is a solvable engineering gap, for example │
+│ a lightweight one-click 'confirm still current' action or a 'left post' flag that removes the contact from │
+│ ranking.                                                                                                   │
+│                                                                                                            │
+│ Disagreement Score: 0.8812 | Gate Status: ROUND_1_MINIMUM_LOCK                                             │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────── Round 2 · PROPOSER (Conf: 0.72) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Derived 'Suggested Contacts (activity-based)' panel on the Country record showing   │
+│ up to 3 contacts, with a 'Show all N contacts' link to the existing permission-filtered contact list.      │
+│ Ranking is a fixed, documented rule: (1) exclude contacts flagged inactive or whose Contact-Country link   │
+│ has a valid_to date in the past; (2) rank contacts linked to a Mission with status Active or a Project     │
+│ with status Open ahead of the rest; (3) most recent Engagement date, with contacts that have no engagement │
+│ ranked last; (4) tie-break on primary_for_country, then alphabetical by name for stable ordering",         │
+│ "Optional valid_from / valid_to date fields on the existing Contact-Country link (no new table, no new     │
+│ screen; they appear on the existing link edit form). A past valid_to removes the contact from ranking. The │
+│ existing 'inactive' flag also removes them. Neither field is required", "Each suggestion shows role/title, │
+│ ministry, preferred channel, last engagement date (or 'no engagement recorded'), and a 'why shown' line.   │
+│ The panel carries a fixed caveat: 'Based on recorded activity, not verified current role or seniority.     │
+│ Confirm before sensitive correspondence.'", "Optional boolean 'primary_for_country' on the existing        │
+│ Contact-Country link, which pins that contact to the top. Pinning does not override inactive or expired    │
+│ valid_to", "'last_verified' is dropped as a concept. Replaced by a read-only, derived 'last engagement     │
+│ date', labelled as activity and not verification. A passive factual label 'No engagement in 12+ months'    │
+│ appears only on contacts shown in the top 3. There is no badge on list views and no verification           │
+│ workflow", 'Topic filter by Mission/Project via existing links only', "'Who do I contact in [Country] for  │
+│ [Project/Mission]' from the Country page and global search. It runs live against the same                  │
+│ permission-filtered query layer as the panel. It does not use a separate search index of contacts or       │
+│ justification strings", "Permission enforcement is server-side per record: a contact is listed only if the │
+│ user can see that Contact under the existing Country/Mission access model. The 'why shown' line names a    │
+│ Mission, Project, or Engagement only if the user can read that record; otherwise it falls back to the      │
+│ generic text 'Linked to this country'. Engagement dates are shown only if the user can read the underlying │
+│ Engagement"]                                                                                               │
+│ Assumptions: ["A1: 'Right person' means the best current point of contact for a country, optionally scoped │
+│ by Mission or Project, not a single universal contact per country.", 'A2: Existing links and Engagement    │
+│ history are good enough to derive a useful suggestion. Departed contacts are excluded via the existing     │
+│ inactive flag or the new optional valid_to on the existing link, not via cleanup or detection.', "A3:      │
+│ Recency of engagement and active Mission/Project linkage are acceptable proxies for 'who is currently      │
+│ being dealt with' in v1, and the panel is decision support, not an authoritative routing engine.", 'A4:    │
+│ Users are Operations and Country Engagement staff. The derived panel, query and justification text are all │
+│ computed server-side through the existing Country/Mission/Engagement record-level permission checks, with  │
+│ no separate index.', "A5: Position changes are not detected automatically in v1. Turnover is handled by an │
+│ optional valid_to or the inactive flag, and by a passive 'No engagement in 12+ months' label on top-3      │
+│ contacts only.", "A6: Whether a person is appropriate for a sensitive topic, and seniority or protocol     │
+│ precedence, are diplomatic/policy judgments outside the CRM's remit."]                                     │
+│ Challenge Responses: [{'issue_id': 'C1', 'move': 'REVISED', 'response': "The critique is right that        │
+│ engagement activity is not proof of current role, and that last_verified updated by engagement was         │
+│ misleading. Revisions that add no new tables, screens, or mandatory steps: (1) drop 'last_verified' and    │
+│ show a read-only, derived 'last engagement date' labelled as activity; (2) add optional                    │
+│ valid_from/valid_to on the existing Contact-Country link, with a past valid_to excluding the contact from  │
+│ ranking; (3) the existing inactive flag excludes them deterministically; (4) a fixed caveat on the panel.  │
+│ I DEFEND not building cleanup, dedup, or turnover detection in v1: those need external data or manual      │
+│ programmes and would break the zero-friction goal. The ranking cannot know about a departure nobody        │
+│ records, and the caveat says so. A contact who has left is removed by one optional field edit on a record  │
+│ the coordinator is already viewing.", 'confidence': 0.65}, {'issue_id': 'C2', 'move': 'REVISED',           │
+│ 'response': "Valid concern, and the fix reuses the existing access model with no new screens, tables, or   │
+│ RBAC. (1) The panel, query, and global-search 'who do I contact' path run server-side through the existing │
+│ permission-filtered queries, with no separate contact or justification search index, which removes the     │
+│ index-bypass path. (2) 'Why shown' text names a Mission, Project, or Engagement only if the user can read  │
+│ that record; otherwise it falls back to 'Linked to this country', so confidential Mission existence is not │
+│ inferred. (3) Engagement dates show only if the underlying Engagement is readable. (4) A contact appears   │
+│ only if the user can see that Contact today. (5) The success criterion now explicitly tests the panel,     │
+│ query, search results and justification strings with differing-access users. The exact access rules for    │
+│ confidential Missions and what may be inferred are a security/classification decision that a human owner   │
+│ must confirm. I am implementing the existing rules, not defining new ones.", 'confidence': 0.75},          │
+│ {'issue_id': 'C3', 'move': 'DEFENDED', 'response': "Ranking by seniority or decision-maker status needs a  │
+│ role/seniority taxonomy per country, protocol precedence rules, and manual maintenance by coordinators.    │
+│ That is policy content, not a product tweak, and it would break both schema simplicity and zero-entry. v1  │
+│ labels the panel 'Suggested Contacts (activity-based)' and carries a caveat saying it reflects recorded    │
+│ activity, not seniority. The 'Show all N' link and optional primary_for_country pin let a human who knows  │
+│ the correct channel override the order. The critic's edge cases are handled by fixed documented rules      │
+│ without new scope: 'active' means Mission status Active or Project status Open (closed items do not boost  │
+│ ranking); ties break by primary_for_country and then alphabetically; contacts with no engagement rank last │
+│ and show 'no engagement recorded'; more than 3 valid contacts show the top 3 plus the full list link. The  │
+│ weak survey metric is replaced by a coordinator-validated pilot on 20 sampled countries that measures      │
+│ correctness of the list and records failure reasons. Whether the junior-versus-decision-maker ranking      │
+│ should ever be automated is a diplomatic protocol question for humans, and I flag it for routing there.",  │
+│ 'confidence': 0.7}, {'issue_id': 'C4', 'move': 'DEFENDED', 'response': "A 'confirm still current' action   │
+│ or 'left post' flag would add a new UI action, a new manual coordinator step, and an ownership model for   │
+│ follow-up, which is exactly the data-entry friction that makes CRM data rot. The 'left post' need is       │
+│ already covered by the existing inactive flag and the optional valid_to from C1, so no new mechanism is    │
+│ required. Alert fatigue is mitigated by design: the label is passive, factual ('No engagement in 12+       │
+│ months'), shown only on contacts in the displayed top 3 and never on list views, and success criteria cap  │
+│ its pilot incidence at 30% so fatigue is measured and not assumed. The critic's coordinator-turnover point │
+│ is real but is a data-continuity issue; engagement logged by any user against the contact counts, not only │
+│ the original coordinator's. Staffing and ownership of data verification are organisational decisions that  │
+│ sit outside this product scope.", 'confidence': 0.65}]                                                     │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────── Round 2 · CRITIC (Conf: 0.55, Ready: False) ────────────────────────────────╮
+│ • [C1 -> A2] (ACCEPTED): Residual risk: a departed liaison nobody has recorded as gone can still rank #1   │
+│ after a reshuffle.                                                                                         │
+│   Eval: The revision removes the misleading last_verified, adds optional valid_from/valid_to on the        │
+│ existing link, keeps the inactive flag, and adds a fixed 'not verified current role' caveat. The remaining │
+│ risk of an unrecorded departure cannot be removed without external data or a workflow, and the caveat plus │
+│ one-field exclusion bounds it acceptably for an MVP. The pilot will report 'departed' as a failure reason. │
+│ • [C2 -> A4] (CHALLENGED): Remaining gap: the ranking and counts can still leak confidential data even     │
+│ when displayed strings are filtered. Scenario: a coordinator sees Country X but not confidential Mission   │
+│ Y. Rule (2) boosts contacts linked to an Active Mission, and rule (3) orders by Engagement date. If these  │
+│ run over all records, the contact tied to Y moves to #1 and the user can infer that Y exists. The same     │
+│ applies to the 'Show all N' count and to the 'no engagement' placement. Only the display text is specified │
+│ as permission-filtered.                                                                                    │
+│   Eval: Good on the index-bypass path (no separate index), the 'why shown' fallback text, engagement-date  │
+│ visibility, and the expanded UAT coverage. The proposal does not say that the ranking inputs               │
+│ (Mission/Project status boost, engagement recency, N) are computed only from records the requesting user   │
+│ can read. Please state that the rank, primary pin and counts are evaluated over the user-visible set, and  │
+│ add a UAT case where an unreadable Mission or Engagement must not change the order. This is a solvable     │
+│ engineering fix. Which Missions are confidential stays with the human owner.                               │
+│ • [C3 -> A3] (ESCALATED_TO_HUMAN): Activity-based ranking can put a junior desk officer ahead of the       │
+│ decision-maker on a sensitive matter. Whether activity-ranked suggestions are acceptable for such matters  │
+│ is a diplomatic protocol decision.                                                                         │
+│   Eval: The Proposer fixed the ties, no-engagement handling, more than 3 contacts, and the stale-Active    │
+│ definition. They also added a caveat, a 'Show all N' link, a primary_for_country override, and a           │
+│ coordinator-validated pilot in place of the weak survey metric. The one point left open is seniority and   │
+│ protocol precedence, and the Proposer has correctly declined to invent it. Engineers cannot settle that.   │
+│ It needs institutional policy sign-off on whether the panel may be used for sensitive correspondence.      │
+│ • [C4 -> A5] (ACCEPTED): A stale label could fire on many stable contacts and be ignored, and our own      │
+│ coordinator turnover could make a whole portfolio age into stale at once.                                  │
+│   Eval: The defense is adequate for an MVP. The label is passive, factual, shown only on top-3 contacts,   │
+│ absent from list views, and capped by a measured 30% pilot threshold that triggers review. Engagement      │
+│ logged by any user counts, which reduces the coordinator-turnover effect. Departures are handled through   │
+│ inactive/valid_to. A verification workflow and its ownership are organisational decisions outside this     │
+│ scope.                                                                                                     │
+│                                                                                                            │
+│ Disagreement Score: 0.1047 | Gate Status: CONTINUE                                                         │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────── Round 3 · PROPOSER (Conf: 0.76) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Derived 'Suggested Contacts (activity-based)' panel on the Country record showing   │
+│ up to 3 contacts, with a 'Show all N contacts' link to the existing permission-filtered contact list.      │
+│ Ranking is a fixed, documented rule evaluated only over the user-visible set: (1) exclude contacts flagged │
+│ inactive or whose Contact-Country link has a valid_to date in the past; (2) rank contacts linked to a      │
+│ Mission with status Active or a Project with status Open ahead of the rest, counting only                  │
+│ Missions/Projects the requesting user can read; (3) most recent Engagement date, counting only Engagements │
+│ the user can read, with contacts that have no visible engagement ranked last; (4) tie-break on             │
+│ primary_for_country, then alphabetical by name for stable ordering", "Optional valid_from / valid_to date  │
+│ fields on the existing Contact-Country link (no new table, no new screen; they appear on the existing link │
+│ edit form). A past valid_to removes the contact from ranking. The existing 'inactive' flag also removes    │
+│ them. Neither field is required", "Each suggestion shows role/title, ministry, preferred channel, last     │
+│ engagement date (or 'no engagement recorded'), and a 'why shown' line. The panel carries a fixed caveat:   │
+│ 'Based on recorded activity, not verified current role or seniority. Confirm before sensitive              │
+│ correspondence.'", "Optional boolean 'primary_for_country' on the existing Contact-Country link, which     │
+│ pins that contact to the top among contacts the user can see. Pinning does not override inactive or        │
+│ expired valid_to", "'last_verified' is dropped as a concept. Replaced by a read-only, derived 'last        │
+│ engagement date' (visible engagements only), labelled as activity and not verification. A passive factual  │
+│ label 'No engagement in 12+ months' appears only on contacts shown in the top 3. There is no badge on list │
+│ views and no verification workflow", 'Topic filter by Mission/Project via existing links only; the filter  │
+│ is applied only over Missions/Projects the user can read', "'Who do I contact in [Country] for             │
+│ [Project/Mission]' from the Country page and global search. It runs live against the same                  │
+│ permission-filtered query layer as the panel. It does not use a separate search index of contacts or       │
+│ justification strings", "Permission enforcement is server-side and applied BEFORE ranking, not only at     │
+│ display time. The candidate set, the Mission/Project status boost, engagement recency, the primary pin,    │
+│ the 'no engagement' placement, and the count N in 'Show all N' are all computed from records the           │
+│ requesting user can read. A hidden Mission, Project, or Engagement therefore cannot change the order, the  │
+│ pin, or N. The 'why shown' line names a Mission, Project, or Engagement only if the user can read that     │
+│ record; otherwise it shows 'Linked to this country'", 'Which Missions/Engagements count as confidential,   │
+│ and what may be inferred from them, is determined by the existing access rules; v1 implements those and    │
+│ does not define new ones']                                                                                 │
+│ Assumptions: ["A1: 'Right person' means the best current point of contact for a country, optionally scoped │
+│ by Mission or Project, not a single universal contact per country.", 'A2: Existing links and Engagement    │
+│ history are good enough to derive a useful suggestion. Departed contacts are excluded via the existing     │
+│ inactive flag or the new optional valid_to on the existing link, not via cleanup or detection.', "A3:      │
+│ Recency of engagement and active Mission/Project linkage are acceptable proxies for 'who is currently      │
+│ being dealt with' in v1, and the panel is decision support, not an authoritative routing engine.", 'A4:    │
+│ Users are Operations and Country Engagement staff. The panel, query, and justification text are computed   │
+│ server-side per request, with the existing Country/Mission/Engagement record-level permission filter       │
+│ applied to the candidate set and to every ranking input (status boost, recency, pin, count), and no        │
+│ separate index.', "A5: Position changes are not detected automatically in v1. Turnover is handled by an    │
+│ optional valid_to or the inactive flag, and by a passive 'No engagement in 12+ months' label on top-3      │
+│ contacts only.", "A6: Whether a person is appropriate for a sensitive topic, and seniority or protocol     │
+│ precedence, are diplomatic/policy judgments outside the CRM's remit and are escalated to a human policy    │
+│ owner."]                                                                                                   │
+│ Challenge Responses: [{'issue_id': 'C2', 'move': 'REVISED', 'response': "Accepted: displayed-string        │
+│ filtering alone is not enough, since ranking and counts can leak the existence of a hidden Mission via     │
+│ order. The fix is a deterministic ordering change with no new screens, tables, RBAC, or coordinator steps. │
+│ Permission filtering is now applied before ranking: the candidate contact set, the Mission/Project status  │
+│ boost, Engagement recency, the primary pin, the 'no engagement' placement, and N in 'Show all N' are all   │
+│ computed only from records the requesting user can read. A contact linked only to an unreadable Active     │
+│ Mission is ranked as if that link did not exist. No shared or cached global ranking is used, so there is   │
+│ no cross-user leakage path. I added a differential UAT case: changing hidden Missions, Projects, or        │
+│ Engagements must leave a restricted user's output byte-identical. Which Missions are confidential, and     │
+│ whether a visible contact linked to a confidential Mission should be shown at all, is a                    │
+│ security/classification decision for a human owner. v1 implements existing access rules and does not       │
+│ define new ones.", 'confidence': 0.8}]                                                                     │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────── Round 3 · CRITIC (Conf: 0.30, Ready: True) ────────────────────────────────╮
+│ • [C1 -> A2] (ACCEPTED): Previously accepted: departed contacts are excluded via the inactive flag or      │
+│ valid_to, last_verified is dropped, and the panel carries an activity-only caveat.                         │
+│   Eval: Remains acceptable for an MVP. Not reopened.                                                       │
+│ • [C2 -> A4] (ACCEPTED): The original risk: a coordinator who sees Country X but not a confidential        │
+│ Mission Y could infer Y's existence, or the contact linked to it, from ranking order, pin placement, the   │
+│ 'Show all N' count, or the 'why shown' text.                                                               │
+│   Eval: The revision closes the engineering gap. Permission filtering now runs before ranking, so the      │
+│ candidate set, status boost, recency, pin, 'no engagement' placement and N come only from records the user │
+│ can read. There is no separate index and no cached shared ranking. 'Why shown' falls back to 'Linked to    │
+│ this country' when the record is unreadable. The automated differential test (byte-identical output when   │
+│ hidden Missions, Projects or Engagements change) and the UAT matrix with 5 users cover the panel, query,   │
+│ search, strings and count. Whether a visible contact linked to a confidential Mission should be shown at   │
+│ all is a classification decision, and the Proposer has left it to existing access rules. That is           │
+│ acceptable for an MVP.                                                                                     │
+│ • [C3 -> A3] (ESCALATED_TO_HUMAN): Engagement recency is a poor proxy for seniority or decision-maker      │
+│ status. Ranking contacts for sensitive matters requires a protocol and seniority policy decision.          │
+│   Eval: Already escalated to a human policy owner. The Proposer has explicitly kept seniority ranking out  │
+│ of scope. Stays escalated.                                                                                 │
+│ • [C4 -> A5] (ACCEPTED): Previously accepted: the stale label is now limited to top-3 contacts, is passive │
+│ and factual, and has a 30% review threshold, which bounds the risk of alert fatigue.                       │
+│   Eval: Acceptable for an MVP. Not reopened.                                                               │
+│                                                                                                            │
+│ Disagreement Score: 0.0 | Gate Status: CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED                        │
+│ (CRITIC_SIGNALED_CONVERGENCE)                                                                              │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+────────────────────────────────────────── Final Decision Document ───────────────────────────────────────────
+# Deliberation Decision Document
+**Feature Request:** We need a better way to track who is the right person to contact in each country.
+
+**Termination Reason:** `CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)` | **Final
+Disagreement Score:** `0.0` | **Confidence (Proposer / Critic):** `0.76` / `0.30`
+
+## Executive Summary
+v1 adds a derived, activity-based 'Suggested Contacts' panel on the Country record. It shows up to 3 contacts 
+ranked by a fixed, documented rule over existing Contact, Mission, Project and Engagement data. It also 
+supports a 'who do I contact in [Country] for [Project/Mission]' query from the Country page and global 
+search. Permission filtering is applied before ranking, so hidden records cannot affect order, pins or counts.
+The main trade-off argued was zero-friction, deterministic ranking from existing data versus the risk of 
+surfacing departed, junior, or otherwise wrong contacts. This was bounded with optional valid_to/inactive 
+exclusions, a fixed caveat, and a passive 12-month label, but seniority and protocol ranking were deliberately
+left out. A human policy owner must still decide whether activity-ranked suggestions may be used for sensitive
+correspondence (C3).
+
+## 1. Agreed Scope
+### Included in Scope (v1 MVP)
+- Derived 'Suggested Contacts (activity-based)' panel on the Country record showing up to 3 contacts, with a 
+'Show all N contacts' link to the existing permission-filtered contact list
+- Fixed, documented ranking rule evaluated only over the user-visible set: (1) exclude contacts flagged 
+inactive or whose Contact-Country link has a past valid_to; (2) rank contacts linked to an Active Mission or 
+Open Project ahead of the rest, counting only records the user can read; (3) most recent readable Engagement 
+date, with contacts with no visible engagement ranked last; (4) tie-break on primary_for_country, then 
+alphabetical by name
+- Optional valid_from / valid_to date fields on the existing Contact-Country link (no new table, no new 
+screen); a past valid_to or the existing inactive flag removes the contact from ranking
+- Each suggestion shows role/title, ministry, preferred channel, last engagement date (or 'no engagement 
+recorded'), and a 'why shown' line, plus the fixed caveat 'Based on recorded activity, not verified current 
+role or seniority. Confirm before sensitive correspondence.'
+- Optional boolean 'primary_for_country' on the existing Contact-Country link that pins a contact to the top 
+among contacts the user can see; it does not override inactive or expired valid_to
+- 'last_verified' dropped and replaced by a read-only derived 'last engagement date' (visible engagements 
+only), labelled as activity and not verification; a passive 'No engagement in 12+ months' label appears only 
+on top-3 contacts, with no badge on list views
+- Topic filter by Mission/Project via existing links only, applied only over Missions/Projects the user can 
+read
+- 'Who do I contact in [Country] for [Project/Mission]' from the Country page and global search, run live 
+against the same permission-filtered query layer with no separate search index
+- Server-side permission enforcement applied BEFORE ranking: candidate set, status boost, engagement recency, 
+primary pin, 'no engagement' placement and the count N are computed only from records the user can read; 'why 
+shown' falls back to 'Linked to this country' for unreadable records
+- Confidential Missions/Engagements are defined by the existing access rules; v1 implements those and defines 
+no new ones
+
+### Explicitly Excluded from Scope
+- No new Contact, Role, or Relationship tables and no multi-table historical role graph
+- No verification workflow, 'confirm still current' task, approval chain, or follow-up ownership model in v1
+- No ML or tunable scoring model; no UI config screens for ranking rules or thresholds
+- No seniority, decision-maker, or protocol ranking (a diplomatic policy decision for humans, escalated under 
+C3)
+- No custom RBAC, new permission model, sensitivity tiers, or field-level classification; existing 
+Country/Mission access only
+- No bulk cleanup, dedup, or import of existing contact data; v1 uses data as it exists
+- No separate search index for contacts or derived justification text
+- No precomputed or cached global ranking shared across users; ranking is computed per request under the 
+requesting user's permissions
+- No automated outreach, email/calendar integration, or external directory sync for detecting turnover
+- No cross-country or regional rollups
+
+### Success Criteria
+- Panel renders on 100% of Country records with at least one linked non-excluded Contact, with p95 load time 
+under 2 seconds including per-request permission filtering
+- Permission test suite in UAT explicitly covers the panel, the 'who do I contact' query, global search 
+results, 'why shown' strings, and the 'Show all N' count; using at least 5 test users with differing 
+Country/Mission access (including a user who sees Country X but not a confidential Mission Y), there are 0 
+cases of a contact, Mission/Project name, Engagement date, or count shown that the user cannot access directly
+- Differential leakage test (automated): for a restricted user, adding, removing, or changing a Mission, 
+Project, or Engagement they cannot read produces byte-identical panel order, pin placement, 'no engagement' 
+placement, N, and 'why shown' text in 100% of test cases
+- Contacts flagged inactive or with a past valid_to appear in 0 panel or query results (automated test)
+- Pilot validation: for 20 sampled countries across at least 5 regions, the owning Regional Coordinator 
+reviews the top-3 list once (one-off pilot measurement, not a product workflow), and at least 70% of lists 
+contain the correct current primary contact; results reported with failure reasons (departed, junior-only, 
+missing data) to inform v2
+- Median time to find a contact for a given Country+Mission drops by at least 50% against a baseline measured 
+pre-release on 10 timed tasks
+- 0 new required fields for Regional Coordinators; the only new fields are optional (valid_from, valid_to, 
+primary_for_country)
+- 100% of displayed suggestions show the activity-based caveat, a last-engagement date or 'no engagement 
+recorded', and a 'why shown' line; ranking output is deterministic (same data and same user permissions give 
+the same order in repeated runs, 100% of test cases including ties and no-engagement contacts)
+- The 'No engagement in 12+ months' label appears on no more than 30% of top-3 suggestions in pilot data; a 
+higher rate triggers a v2 review of the label
+
+## 2. Surfaced Assumptions & Deliberation Outcomes
+- **[A1] 'Right person' means the best current point of contact for a country, optionally scoped by Mission or
+Project, not a single universal contact per country.** (Challenged: `False` -> Disposition: `ACCEPTED`)
+  - *Notes:* No ledger issue targeted this assumption; it stood unchanged through all rounds.
+- **[A2] Existing links and Engagement history are good enough to derive a useful suggestion. Departed 
+contacts are excluded via the existing inactive flag or the new optional valid_to on the existing link, not 
+via cleanup or detection.** (Challenged: `True` -> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C1 challenged this in R1; the Proposer revised it in R2 (dropped last_verified, added optional 
+valid_to, added caveat) and the Critic accepted, noting residual risk from unrecorded departures is acceptable
+for an MVP.
+- **[A3] Recency of engagement and active Mission/Project linkage are acceptable proxies for 'who is currently
+being dealt with' in v1, and the panel is decision support, not an authoritative routing engine.** 
+(Challenged: `True` -> Disposition: `ESCALATED_TO_HUMAN`)
+  - *Notes:* C3 was defended by the Proposer in R2 (caveat, tie-break and no-engagement rules, 'Show all N', 
+pin, coordinator-validated pilot) and escalated by the Critic because seniority/protocol precedence is a 
+policy decision; it stayed escalated.
+- **[A4] Users are Operations and Country Engagement staff. The panel, query, and justification text are 
+computed server-side per request, with the existing Country/Mission/Engagement record-level permission filter 
+applied to the candidate set and to every ranking input (status boost, recency, pin, count), and no separate 
+index.** (Challenged: `True` -> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C2 was revised in R2 and again in R3 (permission filtering before ranking, differential leakage 
+test); the Critic accepted in R3.
+- **[A5] Position changes are not detected automatically in v1. Turnover is handled by an optional valid_to or
+the inactive flag, and by a passive 'No engagement in 12+ months' label on top-3 contacts only.** (Challenged:
+`True` -> Disposition: `ACCEPTED`)
+  - *Notes:* C4 was defended by the Proposer in R2 and accepted by the Critic as adequate for an MVP, given 
+the passive label, top-3-only display, and the 30% pilot threshold.
+- **[A6] Whether a person is appropriate for a sensitive topic, and seniority or protocol precedence, are 
+diplomatic/policy judgments outside the CRM's remit and are escalated to a human policy owner.** (Challenged: 
+`False` -> Disposition: `ACCEPTED`)
+  - *Notes:* No ledger issue targeted this assumption directly; it was revised in R3 to reference the 
+escalation, which relates to C3 under A3.
+
+## 3. Open Questions Requiring Human / Policy Sign-Off
+- [C3] Policy owner for diplomatic protocol (e.g., Head of Diplomatic Security or Regional Director, with 
+Legal as needed): may the activity-ranked 'Suggested Contacts' panel, which ranks by engagement recency and 
+Mission/Project linkage and not by seniority or protocol precedence, be used for sensitive or urgent 
+correspondence as-is with its caveat, and should any seniority/protocol precedence rule be defined for a later
+version? Until decided, v1 treats the panel as decision support only and includes no seniority ranking.
+

@@ -1,0 +1,413 @@
+────────────────────────────────────────── The Deliberation Engine ───────────────────────────────────────────
+Input Feature Request: The CRM should alert us when our relationship with a country goes cold.
+
+╭───────────────────────────────────── Round 1 · PROPOSER (Conf: 0.78) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Derive 'last meaningful engagement date' per Country from existing Engagement       │
+│ records (no new data entry); an Engagement counts as meaningful if it is linked to the Country, and has    │
+│ type in a fixed list (meeting, call, mission visit, email logged by staff).", "Fixed, system-wide 'cold'   │
+│ rule in v1: no meaningful engagement with a Country in the last 90 days (single constant in config, not a  │
+│ UI screen).", "Nightly batch job computing cold/not-cold status per Country, writing status and 'days      │
+│ since last engagement' as derived fields on the Country record.", "In-app 'Cold Countries' list view       │
+│ (filter on derived status), sortable by days since last engagement, showing Country, last engagement date, │
+│ and last contact/owner.", 'One weekly digest email to each Regional Coordinator listing newly cold         │
+│ countries in their existing region assignment, using the existing Country-to-Coordinator relationship.',   │
+│ 'Suppression of alerts for Countries with an active Mission or an Engagement scheduled in the future (read │
+│ from existing Mission/Engagement data) to avoid false alarms.', 'Alert recipients and visibility inherit   │
+│ the existing Country access model; no new permissions.']                                                   │
+│ Assumptions: ["A1: 'Cold' means a lack of recent logged engagement, not a qualitative judgment of          │
+│ relationship quality.", 'A2: A single global threshold (90 days) is acceptable for v1 across ~100          │
+│ countries.', 'A3: The audience is Operations and Regional Coordinators, who need a prioritized list and a  │
+│ weekly digest rather than real-time alerts.', 'A4: Existing Engagement records are logged reasonably       │
+│ consistently, and the Country-to-Coordinator assignment and Country/Mission access model already exist and │
+│ can be reused.', 'A5: Some countries are legitimately quiet (e.g., no active projects), and an occasional  │
+│ false positive is tolerable in v1 if the alert is informational and does not trigger any action.']         │
+│ Challenge Responses: []                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────── Round 1 · CRITIC (Conf: 0.74, Ready: False) ────────────────────────────────╮
+│ • [C1 -> A4] (CHALLENGED): The weekly digest and 'Cold Countries' list inherit the 'existing Country       │
+│ access model', but the list shows 'last contact/owner' and the digest is sent by email. A Regional         │
+│ Coordinator for Region X, or a staff member scoped to only a few countries, could see contact names for    │
+│ countries outside their assignment if the list view or batch-written derived fields on Country bypass      │
+│ per-record permission checks. The digest also puts country names and contact identities into email, which  │
+│ leaves the CRM's access controls and may be forwarded or retained in personal mailboxes. If a              │
+│ coordinator's access is revoked after reassignment, the digest could still arrive. Needs explicit          │
+│ enforcement: list query filtered by the viewer's country scope, digest content minimal (country name and   │
+│ days only, no contact names), and recipients re-evaluated at send time.                                    │
+│   Eval: Proposer asserts 'no new permissions' but has not shown that the nightly job's derived fields,     │
+│ list view, and email path each apply the existing scope check. The email channel is not covered by the     │
+│ existing access model at all.                                                                              │
+│ • [C2 -> A5] (CHALLENGED): Alert fatigue: 'occasional false positive is tolerable' is unsupported, and     │
+│ there is no snooze or dormant flag. Many of ~100 countries are legitimately low-touch (no active projects, │
+│ small partners), so the same countries will reappear on the list every week and coordinators will learn to │
+│ ignore the digest. The 'newly cold' wording is also ambiguous, since without alert state (no new tables)   │
+│ the job cannot reliably tell newly cold from still cold, so it will either re-list the same countries      │
+│ weekly or miss re-crossings. Suppression covers only active missions or future engagements. The success    │
+│ criterion of up to 15 countries per coordinator on average is itself a noisy digest. Need a bounded way to │
+│ identify 'newly cold' (for example a derived field on Country holding the date it first went cold) and a   │
+│ cheap way to exclude known low-touch countries (for example a single boolean on Country set by an admin).  │
+│   Eval: Proposer treats false positives as acceptable and excludes any dormant mechanism, but gives no     │
+│ mechanism for newly-cold detection and the stated 15 per coordinator tolerance already implies a noisy     │
+│ digest.                                                                                                    │
+│ • [C3 -> A1] (CHALLENGED): Equating 'cold' with no logged engagement conflates the relationship with the   │
+│ logging habits of staff. Countries whose engagements are held by a coordinator who left, or handled by a   │
+│ delegate who never logs calls, will show cold when the relationship is warm, and a warm-looking country    │
+│ will appear healthy because of one trivial staff-logged email. Also, 'email logged by staff' and any       │
+│ engagement type counting as meaningful lets a bulk or automated mass mailing to 100 countries reset the    │
+│ clock for everyone, hiding genuinely cold countries. Also, engagement records with a null or future date,  │
+│ or merged or deleted countries, can produce wrong days-since values. Need a definition of meaningful that  │
+│ excludes bulk or mass-logged entries and handles null dates, and a visible 'based on logged engagements    │
+│ only' label with the last-engagement date so users do not read it as a relationship verdict.               │
+│   Eval: Proposer labels the rule deterministic and explainable but does not address data quality: bulk     │
+│ entries, missing dates, or staff who do not log. A1 and A4 'logged reasonably consistently' is untested.   │
+│ • [C4 -> A3] (CHALLENGED): Turnover: the digest goes to the 'existing Country-to-Coordinator               │
+│ relationship'. With frequent staff turnover, countries with no assigned coordinator, or whose coordinator  │
+│ has departed or is inactive, will drop out of every digest, so the countries most at risk, the ones nobody │
+│ owns, are never alerted. Likewise 'last contact/owner' may show a departed person or a ministry contact    │
+│ who has since left, which sends staff to the wrong person. Need a fallback recipient (Operations lead) for │
+│ unowned or inactive-owner countries, and the list should flag unassigned countries and stale contact       │
+│ records.                                                                                                   │
+│   Eval: Not addressed; the proposal assumes the assignments are current and complete.                      │
+│ • [C5 -> A2] (CHALLENGED): A single 90-day threshold across ~100 countries ignores the fact that           │
+│ engagement cadence differs by relationship tier and region. High-priority partners may be effectively cold │
+│ after 30 days, while low-touch countries are normal at 180 days. Result: priority countries decay          │
+│ unnoticed for a quarter while low-priority ones flood the list, which feeds the fatigue in C2. Also there  │
+│ is no check of the threshold against actual data before launch. Need a pre-launch backfill run on          │
+│ historical engagements to show the projected list size, and an agreed cap or an exit criterion if the list │
+│ exceeds a limit, rather than learning from noise in production.                                            │
+│   Eval: Proposer defers tuning to after launch with engineering change only; no pre-launch validation      │
+│ against historical data.                                                                                   │
+│                                                                                                            │
+│ Disagreement Score: 0.8785 | Gate Status: ROUND_1_MINIMUM_LOCK                                             │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────── Round 2 · PROPOSER (Conf: 0.77) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Derive 'last meaningful engagement date' per Country from existing Engagement       │
+│ records, with no new data entry. Meaningful means type in a fixed list (meeting, call, mission visit).     │
+│ Staff-logged email is removed from the list. Engagements with a null date or a future date are ignored.    │
+│ Engagements linked to more than 5 Countries are excluded as bulk or mass entries (a constant in config).   │
+│ Merged or deleted Countries are skipped.", "Fixed system-wide 'cold' rule: no meaningful engagement with a │
+│ Country in the last 90 days (a single config constant, no UI screen).", 'Nightly batch job writing cold    │
+│ status, last meaningful engagement date and days-since as derived fields on Country. All reads go through  │
+│ the existing record-permission query layer.', "In-app 'Cold Countries' list view, sortable by days since   │
+│ last engagement. It shows Country, last engagement date, last contact (only if the viewer has existing     │
+│ Contact access, and only if the contact is active in existing status data) and coordinator. Countries with │
+│ no active coordinator show an 'Unassigned' label. The list is filtered by the viewer's existing Country    │
+│ scope, and a static label reads 'Based on logged engagements only'.", 'One weekly digest email. It lists   │
+│ only newly cold countries, defined statelessly as last meaningful engagement date between 90 and 97 days   │
+│ ago. It contains country name and days-since only, with no contact names, plus a link to the in-app list.  │
+│ Recipients are re-evaluated at send time: active user with a current Country assignment. Countries with no │
+│ active coordinator go to users holding the existing Operations role.', 'Suppression of alerts for          │
+│ Countries with an active Mission or a future-dated Engagement, read from existing data.', 'One-time        │
+│ pre-launch backfill dry run on historical engagements, run as a script (no new feature, no UI). It reports │
+│ projected list size and weekly newly-cold counts as a release gate.', 'Alert visibility reuses the         │
+│ existing Country/Mission access model; no new permissions or roles.']                                      │
+│ Assumptions: ["A1: 'Cold' means no recent meaningful logged engagement, not a verdict on relationship      │
+│ quality. Meaningful excludes staff-logged email, bulk or mass entries (linked to more than 5 Countries),   │
+│ and null or future dates.", 'A2: A single 90-day threshold is acceptable for v1, validated by a pre-launch │
+│ backfill dry run before release.', 'A3: The audience is Operations and Regional Coordinators, who need a   │
+│ weekly push of newly cold countries plus an always-available pull list. Countries without an active        │
+│ coordinator route to the existing Operations role.', "A4: The existing Country-to-Coordinator assignment   │
+│ and Country/Mission access model can be reused for the list query and for the digest recipient check at    │
+│ send time. Email content is kept minimal because email leaves the CRM's access controls.", 'A5: Some       │
+│ countries are legitimately quiet. The digest lists a country once per cold episode, so low-touch countries │
+│ appear at most once per episode and then live only on the pull list.']                                     │
+│ Challenge Responses: [{'issue_id': 'C1', 'move': 'REVISED', 'response': "The Critic is right that email is │
+│ outside the access model. The fix needs no new screens, tables or manual steps. The list query filters by  │
+│ the viewer's existing Country scope, and derived fields are read through the same permission layer.        │
+│ Contact names appear in-app only if the viewer already has Contact access. The digest carries country name │
+│ and days-since only, and recipients are re-checked at send time. Whether country names in email are        │
+│ permitted at all is a data-classification question for a human owner, not a product decision. If email is  │
+│ disallowed, the digest becomes a notification linking to the in-app list.", 'confidence': 0.8},            │
+│ {'issue_id': 'C2', 'move': 'DEFENDED', 'response': "Newly cold needs no alert-state table or extra field.  │
+│ The nightly job already knows last meaningful engagement date. A country is newly cold in the weekly       │
+│ digest iff that date falls 90 to 97 days before the send. It is listed once per cold episode, and any new  │
+│ engagement resets the date, so re-crossings are alerted again naturally. This bounds fatigue because a     │
+│ low-touch country appears in the push digest once per episode, not every week, and thereafter only on the  │
+│ pull list. I decline the admin low-touch boolean for v1. It is a manual maintenance step that will rot,    │
+│ needs an edit surface and an owner, and the Critic's own concern about permanent re-listing disappears     │
+│ once the digest is episode-based. I also replace the loose '15 per coordinator' criterion with the         │
+│ backfill gate of at most 5 newly cold per coordinator per week. If the pilot shows persistent noise, a     │
+│ dormant flag can be added in v1.1 with real data.", 'confidence': 0.72}, {'issue_id': 'C3', 'move':        │
+│ 'REVISED', 'response': "Most of this is cheap and deterministic. I drop staff-logged email from meaningful │
+│ types, leaving meeting, call and mission visit. I exclude engagements linked to more than 5 Countries as   │
+│ bulk entries, ignore null and future dates, and skip merged or deleted Countries. The list now carries a   │
+│ static 'Based on logged engagements only' label and the last-engagement date, so the rule is not read as a │
+│ relationship verdict. None of this adds a screen, table or coordinator step. What I do not fix is          │
+│ under-logging by staff who never record calls. That is a data-habit issue the product cannot solve in v1,  │
+│ and the label and the backfill make it visible.", 'confidence': 0.75}, {'issue_id': 'C4', 'move':          │
+│ 'REVISED', 'response': "Unowned countries are the highest-risk case, so I add a deterministic fallback.    │
+│ Countries with no active coordinator (none assigned, or the assignee is inactive per existing user status) │
+│ go in the digest to users holding the existing Operations role, and the list shows an 'Unassigned' label.  │
+│ No new role, screen or table is needed. For stale contacts, the list shows the last contact only if the    │
+│ contact is active in existing status data. Building a role-change or staleness tracker is out, since that  │
+│ is the historical role graph I am cutting.", 'confidence': 0.75}, {'issue_id': 'C5', 'move': 'DEFENDED',   │
+│ 'response': 'I reject per-tier or per-region thresholds in v1. They need a tier attribute on Country,      │
+│ someone to maintain it, and a config UI, and the tier assignment is itself an institutional priority       │
+│ decision for humans, not the product. A single constant is changeable by engineering in one line. I do     │
+│ accept the substance of the pre-launch check, since it costs no schema or UI: a one-time backfill dry run  │
+│ on historical engagements is now a release gate with a numeric limit (cold list at most 30% of countries,  │
+│ at most 5 newly cold per coordinator per week). If the gate fails, the constant is changed before launch   │
+│ instead of learning from noise in production. Together with the stateless once-per-episode digest, this    │
+│ answers the fatigue concern without tiering.', 'confidence': 0.72}]                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────── Round 2 · CRITIC (Conf: 0.50, Ready: False) ────────────────────────────────╮
+│ • [C1 -> A4] (ESCALATED_TO_HUMAN): Residual risk: country names and 'gone cold' status in an email leave   │
+│ the CRM's access controls, and a coordinator's mailbox may be forwarded or retained.                       │
+│   Eval: The engineering fixes are adequate for an MVP. The list is filtered by the viewer's Country scope, │
+│ contact names show only with existing Contact access, the digest carries country name and days-since only, │
+│ and recipients are re-checked at send time. Whether country names may appear in email at all is a          │
+│ data-classification decision that engineering cannot settle. The Proposer already has a fallback: a        │
+│ link-only notification if email is disallowed.                                                             │
+│ • [C2 -> A5] (CHALLENGED): The stateless 90-to-97-day window silently drops countries. (1) If the weekly   │
+│ send fails, is delayed, or runs on a different weekday than the nightly job, a country that crossed 90     │
+│ days in that week is never digested. Its last engagement date moves past the 97-day window, and the only   │
+│ trace is the pull list. (2) A country that crosses day 90 while suppressed (active Mission or future-dated │
+│ Engagement) is outside the window by the time suppression lifts. The digest never announces it, and it may │
+│ be the one nobody is watching. (3) Inclusive 90 and 97 on an integer day count gives an 8-day span, so a   │
+│ country can appear in two consecutive digests.                                                             │
+│   Eval: The episode-based approach does answer the weekly re-listing of low-touch countries, and declining │
+│ the admin boolean for v1 is acceptable. But the claim that it is bounded and reliable holds only if every  │
+│ run succeeds and no suppression overlaps the window. The 'at most once per episode' guarantee is not       │
+│ actually enforced. A cheap fix needs no new table: either add a derived 'last digested cold-episode date'  │
+│ field on Country, or define the window half-open [90,97) tied to the actual run date, with a run-failure   │
+│ alert and a catch-up rule. Also define how a country whose suppression lifts after the window is surfaced. │
+│ • [C3 -> A1] (ACCEPTED): Cold status could be read as a relationship verdict, and the clock can be reset   │
+│ by weak or bulk engagements, or distorted by null/future dates and merged or deleted Countries.            │
+│   Eval: This is adequate for an MVP. Email is removed from the meaningful types. Entries linked to more    │
+│ than 5 Countries are excluded. Null and future dates are ignored, and merged or deleted Countries are      │
+│ skipped. The list carries the 'Based on logged engagements only' label and the last-engagement date.       │
+│ Under-logging by staff is a data-habit problem that the label and backfill make visible and that the       │
+│ product cannot solve. Excluding legitimate multi-country meetings may over-alert slightly, which is        │
+│ acceptable in the safe direction.                                                                          │
+│ • [C4 -> A3] (ACCEPTED): Countries with no coordinator or an inactive one drop out of every digest, and    │
+│ the list could show a departed contact or owner.                                                           │
+│   Eval: The deterministic fallback is sufficient. Unassigned or inactive-owner countries route to the      │
+│ existing Operations role, and the list shows an 'Unassigned' label. The last contact appears only if it is │
+│ active in existing status data. A role-change tracker is correctly out of scope for the MVP.               │
+│ • [C5 -> A2] (ACCEPTED): A single 90-day threshold ignores tier and region differences, and was            │
+│ unvalidated against real data before launch.                                                               │
+│   Eval: Rejecting tiers is reasonable, because tier assignment is a priority decision that needs an owner  │
+│ and a UI. The backfill dry run is now a numeric release gate: at most 30% of countries cold and at most 5  │
+│ newly cold per coordinator per week. That gives the pre-launch evidence and exit criterion I asked for.    │
+│ Remaining noise is bounded by the gate and the pilot, and is acceptable for v1.                            │
+│                                                                                                            │
+│ Disagreement Score: 0.1226 | Gate Status: CONTINUE                                                         │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────── Round 3 · PROPOSER (Conf: 0.80) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Derive 'last meaningful engagement date' per Country from existing Engagement       │
+│ records, with no new data entry. Meaningful means type in a fixed list (meeting, call, mission visit).     │
+│ Staff-logged email is excluded. Engagements with a null or future date are ignored. Engagements linked to  │
+│ more than 5 Countries are excluded as bulk or mass entries (a config constant). Merged or deleted          │
+│ Countries are skipped.", "Fixed system-wide 'cold' rule: no meaningful engagement with a Country in the    │
+│ last 90 days (a single config constant, no UI screen).", "Nightly batch job writing cold status, last      │
+│ meaningful engagement date, days-since and one new derived field, 'digest_stamped_for_date', as fields on  │
+│ Country. All reads go through the existing record-permission query layer.", "In-app 'Cold Countries' list  │
+│ view, sortable by days since last engagement. It shows Country, last engagement date, last contact (only   │
+│ if the viewer has existing Contact access and the contact is active in existing status data) and           │
+│ coordinator. Countries with no active coordinator show an 'Unassigned' label. The list is filtered by the  │
+│ viewer's existing Country scope and carries a static label 'Based on logged engagements only'.", 'One      │
+│ weekly digest email, event-based rather than window-based. A country is included iff it is cold, not       │
+│ suppressed at send time, and digest_stamped_for_date differs from its current last meaningful engagement   │
+│ date (or is null). After a successful send handoff, the job sets digest_stamped_for_date to that last      │
+│ engagement date. This makes each cold episode alert exactly once. A failed or delayed send leaves the      │
+│ country unstamped and it is picked up on the next run. A country whose suppression (active Mission or      │
+│ future-dated Engagement) lifts while still cold appears in the first digest after the lift. Any new        │
+│ meaningful engagement changes the date, so a later re-crossing alerts again. No weekday alignment between  │
+│ the nightly and weekly jobs is needed.', 'Digest content is country name and days-since only, with no      │
+│ contact names, plus a link to the in-app list. Recipients are re-evaluated at send time: active user with  │
+│ a current Country assignment. Countries with no active coordinator go to users holding the existing        │
+│ Operations role.', 'Suppression of alerts for Countries with an active Mission or a future-dated           │
+│ Engagement, read from existing data. Suppressed countries are not stamped.', 'One-time pre-launch backfill │
+│ dry run on historical engagements, run as a script with no UI. It reports projected list size and weekly   │
+│ newly-cold counts as a release gate. At launch the script also stamps digest_stamped_for_date for every    │
+│ country already cold, so the first digest does not flood coordinators. Those countries are visible on the  │
+│ pull list and in the backfill report given to Operations.', 'Alert visibility reuses the existing          │
+│ Country/Mission access model; no new permissions or roles. Job failures are reported through whatever      │
+│ job-failure monitoring already exists.']                                                                   │
+│ Assumptions: ["A1: 'Cold' means no recent meaningful logged engagement, not a verdict on relationship      │
+│ quality. Meaningful excludes staff-logged email, bulk or mass entries (linked to more than 5 Countries),   │
+│ and null or future dates.", 'A2: A single 90-day threshold is acceptable for v1, validated by a pre-launch │
+│ backfill dry run before release.', 'A3: The audience is Operations and Regional Coordinators, who need a   │
+│ weekly push of newly cold countries plus an always-available pull list. Countries without an active        │
+│ coordinator route to the existing Operations role.', "A4: The existing Country-to-Coordinator assignment   │
+│ and Country/Mission access model can be reused for the list query and the digest recipient check at send   │
+│ time. Email content is kept minimal because email leaves the CRM's access controls. Whether country names  │
+│ may appear in email at all is escalated to a human data-classification owner. If disallowed, the digest    │
+│ becomes a link-only notification.", 'A5: Some countries are legitimately quiet. The digest lists a country │
+│ once per cold episode, tracked by one derived date field on Country (the last engagement date for which a  │
+│ digest was sent). Low-touch countries therefore appear in the push digest once per episode and then live   │
+│ only on the pull list.']                                                                                   │
+│ Challenge Responses: [{'issue_id': 'C2', 'move': 'REVISED', 'response': "The Critic's R2 argument is new   │
+│ and exposes a real flaw in my 90-to-97-day window: a failed or delayed send, a suppression that overlaps   │
+│ the window, or the inclusive-boundary span can each drop a country silently or list it twice. The fix adds │
+│ zero tables, screens or coordinator steps: one derived field on Country, digest_stamped_for_date, written  │
+│ by the job. A country is digested iff it is cold, unsuppressed at send time, and the stamp differs from    │
+│ its current last meaningful engagement date. The stamp is written only after a successful send handoff.    │
+│ This is idempotent: failed or late sends retry on the next run, and countries released from suppression    │
+│ surface in the first digest after the lift. The stamp cannot cause double listing, and a new engagement    │
+│ changes the date so a re-crossing re-alerts. The backfill script stamps already-cold countries at launch   │
+│ to avoid a first-week flood. I still decline the admin low-touch boolean and snooze. They are manual       │
+│ maintenance steps that will rot, and episode-based alerting already removes the weekly re-listing the      │
+│ Critic raised. A dormant flag can be reconsidered in v1.1 if pilot data shows persistent noise.",          │
+│ 'confidence': 0.8}]                                                                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────── Round 3 · CRITIC (Conf: 0.40, Ready: False) ────────────────────────────────╮
+│ • [C1 -> A4] (ESCALATED_TO_HUMAN): Whether country names may appear in email at all is a                   │
+│ data-classification decision for the institution, not an engineering call. The Proposer has already made   │
+│ the engineering mitigations: list filtered by viewer scope, no contact names in the digest, and recipients │
+│ re-checked at send time.                                                                                   │
+│   Eval: Engineering mitigations are adequate for an MVP. The residual question (country names in email,    │
+│ with a link-only fallback) is correctly escalated to the data-classification owner. Status stays escalated │
+│ and is not reopened.                                                                                       │
+│ • [C2 -> A5] (CHALLENGED): The stamp design (digest_stamped_for_date compared with the last meaningful     │
+│ engagement date) fixes weekly re-listing for countries that have engagements. It breaks for a Country with │
+│ no qualifying engagement at all, such as a small partner with only email logs, or one whose only           │
+│ engagements are bulk entries. Its last meaningful engagement date is null and the stamp is also null. The  │
+│ inclusion rule says 'differs ... or is null', so the country is included every week. After a send the      │
+│ stamp is set to a null date, which changes nothing. These never-engaged countries, likely a sizeable share │
+│ of ~100, would reappear in every digest forever. That is the alert fatigue C2 was raised about. The launch │
+│ backfill cannot stamp them either, because a null stamp is indistinguishable from unstamped.               │
+│   Eval: The revision is a real improvement. It makes alerting idempotent, handles failed sends and         │
+│ suppression lifts, and gives re-alerting on re-crossing. Declining the admin low-touch boolean is          │
+│ acceptable, since once-per-episode alerting removes most of the weekly noise. One solvable gap remains:    │
+│ the null-date case. The fix needs no new table or UI. Use a fixed sentinel stamp value (for example a      │
+│ constant 'never engaged' date) so that null-date countries are digested once and then stamped. Or exclude  │
+│ never-engaged countries from the push digest and keep them on the pull list. Please state which, and add a │
+│ test case for it.                                                                                          │
+│ • [C3 -> A1] (ACCEPTED): Already resolved: the 'meaningful' definition excludes staff-logged email, bulk   │
+│ entries linked to more than 5 Countries, and null or future dates. Merged or deleted countries are         │
+│ skipped, and the list carries the 'Based on logged engagements only' label.                                │
+│   Eval: The Proposer's revision removes the clock-reset and bad-date risks. Status stays accepted.         │
+│ • [C4 -> A3] (ACCEPTED): Already resolved: countries with no active coordinator route to the existing      │
+│ Operations role and are labelled 'Unassigned'. Contact display is gated by the viewer's Contact access and │
+│ active status.                                                                                             │
+│   Eval: The fallback recipient and the unassigned flag cover the turnover risk for an MVP. Status stays    │
+│ accepted.                                                                                                  │
+│ • [C5 -> A2] (ACCEPTED): Already resolved: a pre-launch backfill dry run is now a release gate, with caps  │
+│ of at most 30% of countries cold and at most 5 newly cold per coordinator per week. Exceeding either cap   │
+│ triggers adjusting the constant.                                                                           │
+│   Eval: The backfill gate and exit criterion answer the original challenge. Status stays accepted.         │
+│                                                                                                            │
+│ Disagreement Score: 0.0 | Gate Status: DEADLOCK_ESCALATED_TO_HUMAN (C2)                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+────────────────────────────────────────── Final Decision Document ───────────────────────────────────────────
+# Deliberation Decision Document
+**Feature Request:** The CRM should alert us when our relationship with a country goes cold.
+
+**Termination Reason:** `DEADLOCK_ESCALATED_TO_HUMAN (C2)` | **Final Disagreement Score:** `0.0` | 
+**Confidence (Proposer / Critic):** `0.80` / `0.40`
+
+## Executive Summary
+v1 derives a 'last meaningful engagement' date for each country from existing Engagement records and flags a 
+country as cold after 90 days without one. Flagged countries appear on an in-app Cold Countries list that is 
+filtered by the viewer's country scope and labelled 'Based on logged engagements only'. Countries with no 
+active coordinator are marked 'Unassigned'. The main trade-off argued was alert noise and reliability against 
+keeping v1 free of new tables, settings screens and manual dormant flags. The Proposer chose one derived stamp
+field and one global threshold with a backfill release gate. The Critic accepted the definition of 
+'meaningful', the unowned-country handling and the threshold gate. Two items need a human decision before the 
+weekly email digest can be scoped: whether country names may appear in email at all (C1), and how 
+never-engaged countries are handled in the digest (C2, where the agents deadlocked).
+
+## 1. Agreed Scope
+### Included in Scope (v1 MVP)
+- Derive 'last meaningful engagement date' per Country from existing Engagement records, with no new data 
+entry. Meaningful means type meeting, call or mission visit. Staff-logged email is excluded. Engagements with 
+a null or future date are ignored. Engagements linked to more than 5 Countries are excluded as bulk entries 
+(config constant). Merged or deleted Countries are skipped.
+- Fixed system-wide 'cold' rule: no meaningful engagement with a Country in the last 90 days (a single config 
+constant, no UI screen).
+- Nightly batch job writing cold status, last meaningful engagement date and days-since as derived fields on 
+Country. All reads go through the existing record-permission query layer.
+- In-app 'Cold Countries' list view, sortable by days since last engagement. It shows Country, last engagement
+date, last contact (only if the viewer has existing Contact access and the contact is active in existing 
+status data) and coordinator. Countries with no active coordinator show an 'Unassigned' label. The list is 
+filtered by the viewer's existing Country scope and carries the static label 'Based on logged engagements 
+only'.
+- One-time pre-launch backfill dry run on historical engagements, run as a script with no UI. It reports the 
+projected cold list size as a release gate, and the constant is adjusted before launch if the gate is 
+exceeded.
+- Alert visibility reuses the existing Country/Mission access model; no new permissions or roles. Job failures
+are reported through existing job-failure monitoring.
+
+### Explicitly Excluded from Scope
+- Per-country, per-tier or per-region thresholds and any settings UI (v1 uses one constant, tuned after the 
+backfill and pilot data).
+- Admin-set 'low-touch' or 'dormant' boolean, snooze, acknowledge, or any coordinator-facing manual workflow.
+- New tables for alert state, relationship history, or historical role graphs. The one derived date field on 
+Country is the only alert state.
+- ML or weighted relationship-health scoring, sentiment analysis, or predicted churn.
+- Automatic capture from email, calendar or phone systems.
+- Escalation chains, approval workflows, or task assignment from alerts.
+- Stale-contact detection beyond the existing contact status field, and role-change tracking for ministry 
+contacts or project leads.
+- Real-time, push, SMS or chat notifications.
+- Building new job-monitoring infrastructure. The send job reuses existing failure alerting.
+- Judging diplomatic sensitivity of why a relationship is quiet, and deciding whether country names may appear
+in email. Both are human policy and data-classification decisions.
+
+### Success Criteria
+- Nightly job completes for all ~100 Countries in under 10 minutes. The Cold Countries list matches an 
+independent SQL check of the rule (including bulk, null-date and future-date exclusions) for 100% of 20 
+sampled countries in UAT.
+- Zero new required fields or manual steps for Regional Coordinators in any existing form.
+- Backfill gate before release: the projected cold list is at most 30% of countries, and projected newly-cold 
+countries are at most 5 per coordinator per week on average. If either is exceeded, the constant is adjusted 
+before launch.
+- Digest reliability tests: (a) after a simulated skipped or failed weekly send, 100% of countries that went 
+cold in that period appear in the next successful digest. (b) A country whose suppression lifts while still 
+cold appears in the next digest. (c) No country appears in two digests within the same cold episode, across 
+100% of test cases. (d) A new meaningful engagement followed by a re-crossing triggers a fresh alert.
+- Authorization test: a user scoped to country subset S sees zero Cold Countries rows or contact names outside
+S. The digest contains zero contact names. A user whose assignment is removed before send time receives no 
+digest in 100% of test cases.
+- Every Country with no active coordinator and newly cold appears in the Operations digest in 100% of test 
+cases, and is labelled 'Unassigned' in the list.
+- Pilot of 4 weeks: at least 50% of countries flagged newly cold receive a new meaningful Engagement within 30
+days of first alert.
+- Ships as derived fields on Country, one list view and one email job, with no new tables.
+
+## 2. Surfaced Assumptions & Deliberation Outcomes
+- **[A1] 'Cold' means no recent meaningful logged engagement, not a verdict on relationship quality. 
+Meaningful excludes staff-logged email, bulk or mass entries (linked to more than 5 Countries), and null or 
+future dates.** (Challenged: `True` -> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C3 challenged clock-reset and bad-date risks. The Proposer revised the definition of meaningful 
+and added the 'Based on logged engagements only' label, and the Critic accepted.
+- **[A2] A single 90-day threshold is acceptable for v1, validated by a pre-launch backfill dry run before 
+release.** (Challenged: `True` -> Disposition: `ACCEPTED`)
+  - *Notes:* C5 asked for tiered thresholds and pre-launch validation. The Proposer defended the single 
+threshold and added a numeric backfill release gate, and the Critic accepted.
+- **[A3] The audience is Operations and Regional Coordinators, who need a weekly push of newly cold countries 
+plus an always-available pull list. Countries without an active coordinator route to the existing Operations 
+role.** (Challenged: `True` -> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C4 raised unowned countries and departed owners. The Proposer added the Operations-role fallback 
+and the 'Unassigned' label, and the Critic accepted.
+- **[A4] The existing Country-to-Coordinator assignment and Country/Mission access model can be reused for the
+list query and the digest recipient check at send time. Email content is kept minimal because email leaves the
+CRM's access controls. Whether country names may appear in email at all is escalated to a human 
+data-classification owner. If disallowed, the digest becomes a link-only notification.** (Challenged: `True` 
+-> Disposition: `ESCALATED_TO_HUMAN`)
+  - *Notes:* C1 engineering mitigations were accepted as adequate (scope-filtered list, no contact names in 
+digest, send-time recipient check). The residual question of country names in email was escalated to humans in
+R2 and stayed escalated.
+- **[A5] Some countries are legitimately quiet. The digest lists a country once per cold episode, tracked by 
+one derived date field on Country (the last engagement date for which a digest was sent). Low-touch countries 
+therefore appear in the push digest once per episode and then live only on the pull list.** (Challenged: 
+`True` -> Disposition: `ESCALATED_TO_HUMAN`)
+  - *Notes:* C2 went through three rounds and the Proposer revised to the stamp-field design. A null-date gap 
+remained open and the gate escalated it as a deadlock (DEADLOCK_ESCALATED).
+
+## 3. Open Questions Requiring Human / Policy Sign-Off
+- [C1] Data-classification owner (with Legal / Information Security): may country names and 'gone cold' status
+appear in the weekly digest email at all? If yes, the digest carries country name and days-since only. If no, 
+the digest becomes a link-only notification to the in-app list. The weekly digest (content, recipients and 
+Operations fallback) is not in agreed scope until this is decided.
+- [C2] Product Manager together with the Operations lead: the agents could not agree on how the 
+once-per-episode digest handles countries with no qualifying engagement (null last-engagement date). Proposer 
+position: a derived digest_stamped_for_date field on Country makes alerts once per cold episode and robust to 
+failed sends and suppression lifts, and no admin low-touch boolean or snooze is needed in v1 (the Proposer did
+not respond to the null-date case before the deadlock). Critic position: the design is an improvement, but 
+never-engaged countries have a null stamp and would be listed in every weekly digest forever, so either a 
+fixed sentinel stamp (digest once, then stamp) or exclusion of never-engaged countries from the push digest 
+(pull list only) is needed, with a test case. Decision needed: which of those two approaches, if either, 
+should apply, and is the stamp-field design acceptable as the basis for the digest? The digest, its 
+suppression rule and the launch-time stamping are not in agreed scope until this is decided.
+
