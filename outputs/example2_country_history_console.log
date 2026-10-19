@@ -3,190 +3,179 @@ Input Feature Request: Project managers should be able to see the full history o
 before starting a new mission.
 
 ╭───────────────────────────────────── Round 1 · PROPOSER (Conf: 0.72) ──────────────────────────────────────╮
-│ Proposed Scope (In): ["Read-only 'Engagement History' tab on the existing Country page, showing existing   │
-│ Engagement records for that country in reverse-chronological order (date, type, contact, linked            │
-│ mission/project, notes summary). ['A1', 'A2']", "Pre-mission view: on the new-mission creation screen,     │
-│ once a Country is selected, show a read-only link/summary panel (last engagement date, count of            │
-│ engagements in the past 24 months, and a link to the full Country history). ['A1', 'A3']", "Filters on the │
-│ history list using existing fields only: date range, engagement type, contact, and linked mission/project; │
-│ with pagination and CSV-free on-screen viewing. ['A1']", "Access to history inherits the existing          │
-│ Country/Mission permission model: a user sees only the engagement records they could already see today. No │
-│ new roles or visibility flags are introduced. ['A2']", "History is populated automatically from data       │
-│ already captured (engagements, missions, project affiliations). No new mandatory fields for Regional       │
-│ Coordinators. ['A1', 'A4']"]                                                                               │
-│ Assumptions: ["A1: 'Full history of engagement' means the engagement records already stored in the CRM     │
-│ (Engagement, Mission, Project affiliation entities), not off-system communications or pre-CRM records.",   │
-│ 'A2: Project managers already have permission to view the country and mission records they work on, and    │
-│ the history view can inherit those existing permissions without new access rules.', "A3: 'Before starting  │
-│ a new mission' means the history should be surfaced at mission-creation time as an informational aid, not  │
-│ enforced as a required step.", 'A4: The existing engagement data is recorded consistently enough (date,    │
-│ country, contact, type) to produce a useful chronological view without a cleanup project.']                │
+│ Proposed Scope (In): ["Read-only 'Engagement History' tab on the existing Country record, showing a        │
+│ reverse-chronological timeline of existing Engagement records for that country (date, type, summary,       │
+│ contact, linked Mission/Project, logged-by). ['A1', 'A2']", "Pre-mission checkpoint: when a Project        │
+│ Manager opens the 'Create Mission' flow and selects a Country, show the last 5 Engagements and a link      │
+│ 'View full history' that opens the Country Engagement History tab. It is informational only and does not   │
+│ block creation. ['A3']", "Basic filters on the timeline over existing fields only: date range, engagement  │
+│ type, and linked Mission/Project. ['A1']", "Visibility enforced by the existing Country/Mission access     │
+│ model: a Project Manager sees only the engagement records they can already see today. No new roles, flags  │
+│ or per-country settings. ['A4']", "Each timeline entry shows the contact name, linked from the existing    │
+│ Contact record. The timeline renders the contact's current role and status as stored, and does not         │
+│ backfill historical roles. ['A2', 'A5']", "Paginated timeline (page size 25) with server-side query on the │
+│ existing Engagement table via an index on (country_id, engagement_date). No new tables. ['A1']"]           │
+│ Assumptions: ["A1: 'Full history' means all Engagement records already linked to the Country (directly or  │
+│ via its Contacts, Missions and Projects), not a new history log or audit trail.", 'A2: Existing engagement │
+│ data is sufficiently complete and consistently linked to Country that a timeline is useful as-is; gaps are │
+│ shown, not fixed.', 'A3: Project Managers need the history surfaced at the moment they start a mission (a  │
+│ summary in the create-mission flow), and informing them is enough; no gating or sign-off is required.',    │
+│ "A4: Project Managers' current read access to Country, Mission and Engagement records is the right         │
+│ visibility boundary for this feature; whether any engagement content needs tighter classification is a     │
+│ policy question outside this MVP.", "A5: Showing the contact's current name/role/status from the Contact   │
+│ record is acceptable for history entries, even if the role has changed since the engagement."]             │
 │ Challenge Responses: []                                                                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─────────────────────────────── Round 1 · CRITIC (Conf: 0.72, Ready: False) ────────────────────────────────╮
-│ • [C1 -> A2] (CHALLENGED): A2 assumes project managers' existing permissions are per-country/per-mission   │
-│ and can simply be inherited. But 'full country history' aggregates engagements from every mission,         │
-│ including missions the PM is not assigned to. If today's permission model grants Country-page access       │
-│ broadly (e.g., all PMs can open any Country page) while Engagement records were only visible via the       │
-│ missions they work on, a PM on a trade mission with Country X could now see notes and contacts from a      │
-│ sensitive security or political mission run by another team. The new aggregated view becomes a             │
-│ privilege-escalation path. The proposal states 'sees only records they could already see' but never        │
-│ verifies that engagement-level visibility exists in the current model rather than being implicit via the   │
-│ UI path.                                                                                                   │
-│   Eval: Round 1: the Proposer asserts inheritance without evidence that record-level permissions exist for │
-│ Engagements. The permission test in the success criteria only checks against the existing model, so it     │
-│ would not catch an existing model that is too permissive at aggregate level.                               │
-│ • [C2 -> A2] (CHALLENGED): The history list shows a 'notes summary' and contact names for each engagement. │
-│ Engagement notes frequently contain candid commentary about ministry officials, negotiating positions, or  │
-│ political context. Surfacing a notes summary in a list view, and in a pre-mission panel on the creation    │
-│ screen, widens exposure: shoulder-surfing, screenshots, and PMs from a different team with only            │
-│ Country-level access see candid notes about named ministry officials. Notes and contact details are the    │
-│ most confidentiality-sensitive fields, yet they are included by default with no field-level restriction.   │
-│   Eval: Round 1: the Proposer puts per-record classification out of scope, which is a policy matter, but   │
-│ it still includes the notes summary by default. An engineering option exists: omit notes from the list and │
-│ show them only on the detail view under the existing permission check, or make the summary opt-in.         │
-│ • [C3 -> A4] (CHALLENGED): A4 assumes engagement data is consistent enough, but with ~100 countries and    │
-│ frequent turnover of both ministry contacts and Regional Coordinators, engagement records will reference   │
-│ contacts who have since left, been replaced, or been deleted/merged. The history would show a contact name │
-│ with no indication that the person is no longer in post. A PM could then plan a mission around a former    │
-│ minister or an outdated counterpart, and a wrong ministry contact can damage the relationship. Missing or  │
-│ null contacts or dates would also silently distort the 'last engagement date' and the 24-month count,      │
-│ giving false reassurance that a country is 'recently engaged'.                                             │
-│   Eval: Round 1: the Proposer defers data quality, shows gaps 'as-is', and explicitly excludes             │
-│ stale-contact alerts. There is no handling of contact status or an 'as of' indicator, and no treatment of  │
-│ incomplete records in the summary counts.                                                                  │
-│ • [C4 -> A3] (CHALLENGED): The pre-mission panel shows 'last engagement date' and a 24-month count, with a │
-│ link to history, but it is purely passive. A PM who sees '12 engagements' may take it as complete          │
-│ coverage, when A1 says off-system and pre-CRM records are excluded and some records are hidden by          │
-│ permissions. A PM with restricted access could see a low or zero count and conclude the country is         │
-│ untouched, then launch a duplicate or conflicting mission while another team's mission is active. The      │
-│ summary counts also may not reflect permission filtering consistently with the list, so count and list     │
-│ could disagree or leak the existence of hidden records.                                                    │
-│   Eval: Round 1: the Proposer's summary panel does not state its coverage limits, and no rule defines      │
-│ whether counts are computed over visible records only. Active missions in the same country are not         │
-│ surfaced.                                                                                                  │
-│ • [C5 -> A1] (CHALLENGED): Success criteria measure speed and page views but there is no audit trail for   │
-│ access to a country's full engagement history. If a contact list or notes leak, there is no way to         │
-│ establish which PM viewed which country's history. The proposal's new aggregated view makes bulk browsing  │
-│ of 100 countries' histories easy, and the cross-country search is out of scope but a PM can still page     │
-│ through every country one by one. On-screen only does not prevent copy/paste.                              │
-│   Eval: Round 1: no logging of reads beyond the page-view logs used for adoption metrics, and no stated    │
-│ retention or access to those logs for security review.                                                     │
+│ • [C1 -> A4] (CHALLENGED): A Project Manager on a Mission in Country X inherits 'current read access' to   │
+│ Country, Mission and Engagement records. Today that access is likely scoped per mission or screen, and     │
+│ engagement notes are scattered across records. A 'full history' timeline aggregates every Engagement for   │
+│ the country in one view, including engagements logged against other missions, other ministries and prior   │
+│ coordinators. A PM can then read sensitive summaries (for example a ministerial dispute or a back-channel  │
+│ contact) from engagements on missions they were never assigned to. The criterion 'visible through existing │
+│ screens' does not test this, because existing screens never presented the aggregate. Least-privilege needs │
+│ an explicit rule: the history is filtered by the viewer's mission or country assignment at query time, not │
+│ just by Country-level read permission, and the summary text is covered by the same filter. The             │
+│ cross-mission case needs a test.                                                                           │
+│   Eval: The Proposer defers to existing permissions and calls classification a policy question. That is    │
+│ only valid if the existing model is per-record and enforced server-side on the aggregated query. This has  │
+│ not been shown, and the first-5 panel in Create Mission is a new exposure path before any mission          │
+│ assignment exists.                                                                                         │
+│ • [C2 -> A5] (CHALLENGED): Each timeline entry links to the Contact's current name, role and status. When  │
+│ a minister or ministry official is replaced, a 2022 engagement with the 'Minister of Trade' will display   │
+│ the new minister's name and title, or a deactivated or blank contact. A PM could then believe the current  │
+│ minister was engaged on a past sensitive topic, or contact a departed official, and so misread the         │
+│ relationship history and send the wrong message. Without at least a snapshot of name/role as logged        │
+│ (contact_name_at_time) or a visible 'contact since changed / inactive' badge, the history silently         │
+│ misleads under the turnover this CRM faces. A badge needs no new tables.                                   │
+│   Eval: The Proposer explicitly accepts the staleness and only descopes point-in-time history. The cheaper │
+│ mitigation, flagging contacts whose role/status changed after the engagement date, was not considered.     │
+│ • [C3 -> A2] (CHALLENGED): The Proposer assumes engagement data is complete and consistently linked to     │
+│ Country, with gaps simply shown. Engagements linked only via a Contact, Mission or Project (A1) may have   │
+│ no direct country_id, and the index on (country_id, engagement_date) will not return them. A PM looking at │
+│ the timeline for Country X sees a quiet history and concludes no prior engagement, when a recent difficult │
+│ meeting was logged under a contact or mission without country_id. This false sense of 'nothing happened'   │
+│ leads to a mission launched without context. An empty or sparse timeline needs an explicit caveat, and the │
+│ query must match the A1 definition of linkage (direct or via Contact/Mission/Project), or the definition   │
+│ must be narrowed.                                                                                          │
+│   Eval: A1 defines history as direct or indirect linkage, but the scope item only indexes country_id. The  │
+│ two are inconsistent, and the assumption of completeness is untested with no data-quality check before     │
+│ release.                                                                                                   │
+│ • [C4 -> A3] (CHALLENGED): The pre-mission checkpoint shows the last 5 engagements whenever a PM selects a │
+│ country in Create Mission, and success is measured by 60% of new missions having history viewed. The 'last │
+│ 5' are purely recency-ordered, so routine low-value logs (scheduling emails) can push out the one          │
+│ important engagement. With no signal of significance or of how stale the latest entry is, PMs learn to     │
+│ skim past the panel. Also, the panel fires before the PM has any assignment to the country or mission.     │
+│ Selecting a country in the dropdown should not display engagement summaries for countries the PM does not  │
+│ work on. The panel needs the same access filter as C1 and a 'last engagement was N months ago' cue so it   │
+│ conveys useful information.                                                                                │
+│   Eval: The Proposer treats the panel as passive and harmless. Passive does not mean safe: it is a new     │
+│ disclosure surface at mission creation, and a panel people learn to ignore does not meet the 60% view      │
+│ metric's intent.                                                                                           │
 │                                                                                                            │
-│ Disagreement Score: 0.8725 | Gate Status: ROUND_1_MINIMUM_LOCK                                             │
+│ Disagreement Score: 0.8781 | Gate Status: ROUND_1_MINIMUM_LOCK                                             │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭───────────────────────────────────── Round 2 · PROPOSER (Conf: 0.74) ──────────────────────────────────────╮
-│ Proposed Scope (In): ["Read-only 'Engagement History' tab on the existing Country page, listing existing   │
-│ Engagement records for that country in reverse-chronological order (date, type, contact, linked            │
-│ mission/project with an 'Active' badge from the existing Mission status). The list does NOT show notes or  │
-│ a notes summary. ['A1', 'A2']", "Engagement detail: notes are visible only on the existing Engagement      │
-│ detail view, under the existing Engagement/Mission permission check. No notes are shown in the history     │
-│ list or the pre-mission panel. ['A2']", "Pre-mission view: on the new-mission creation screen, once a      │
-│ Country is selected, show a read-only panel with last engagement date, count of engagements in the past 24 │
-│ months, count of currently active missions in that country, and a link to the full Country history. The    │
-│ panel uses the same permission-filtered query as the history list, so count and list cannot disagree. It   │
-│ carries a fixed label: 'Based on CRM records you can access. Excludes off-system and pre-CRM history.'     │
-│ ['A1', 'A2', 'A3']", "Record-level visibility: the history query applies the same server-side              │
-│ Engagement/Mission visibility check used when a user opens an Engagement directly. It does not use mere    │
-│ access to the Country page as the test. Records the user cannot open today are omitted from list, counts,  │
-│ and panel. Release gate: a permission test matrix covers a PM with Country access but no access to a given │
-│ mission. ['A2']", "Contact currency display: each contact in the history shows the current status or       │
-│ last-updated date from the existing Contact record, read-only. Deleted or merged contacts render as        │
-│ 'Contact record removed'. 'Last engagement date' and the 24-month count use only records with a valid      │
-│ date. Undated records appear in the list under an 'Undated' label and are reported separately, not         │
-│ silently dropped or counted. ['A4', 'A5']", "Filters on the history list using existing fields only: date  │
-│ range, engagement type, contact, and linked mission/project; with pagination and on-screen viewing only.   │
-│ ['A1']", "History is populated automatically from data already captured (engagements, missions, project    │
-│ affiliations). No new mandatory fields for Regional Coordinators. ['A1', 'A4']", "Access logging: views of │
-│ the history tab and Engagement detail are recorded in the existing page-view log (user id, country id,     │
-│ timestamp). This is the same log already required for the adoption metric. No new table, viewer, or        │
-│ alerting. ['A6']"]                                                                                         │
-│ Assumptions: ["A1: 'Full history of engagement' means the engagement records already stored in the CRM     │
-│ (Engagement, Mission, Project affiliation entities), not off-system communications or pre-CRM records.",   │
-│ 'A2: Project managers already have permission to view the country and mission records they work on, and    │
-│ the history view can inherit those existing permissions without new access rules.', "A3: 'Before starting  │
-│ a new mission' means the history should be surfaced at mission-creation time as an informational aid, not  │
-│ enforced as a required step.", 'A4: The existing engagement data is recorded consistently enough (date,    │
-│ country, contact, type) to produce a useful chronological view without a cleanup project.', "A5: The       │
-│ existing Contact entity already carries a status or last-updated indicator that can be displayed read-only │
-│ next to a contact name; if neither exists, the history shows 'status unknown' instead of adding a field.", │
-│ 'A6: The existing page-view logging (already needed to measure adoption) can record user id, country id,   │
-│ and timestamp for the history tab and Engagement detail views.']                                           │
-│ Challenge Responses: [{'issue_id': 'C1', 'move': 'REVISED', 'response': 'The Critic is right that          │
-│ Country-page access may be broader than Engagement visibility. The fix is cheap: the history query reuses  │
-│ the server-side check that already governs opening an Engagement or Mission directly, and does not rely on │
-│ Country page access. No new roles or tables. The permission test matrix now includes a PM with Country     │
-│ access but no access to a given mission. If the current model has no record-level Engagement visibility,   │
-│ so that the aggregate view would widen exposure, that is a security-clearance and data-classification      │
-│ decision I cannot make. It should be routed to a human before release. I am not inventing a visibility     │
-│ policy.', 'confidence': 0.75}, {'issue_id': 'C2', 'move': 'REVISED', 'response': 'Removing notes from the  │
-│ list and panel is cheaper than adding field-level controls. Notes now appear only on the existing          │
-│ Engagement detail view under the existing permission check. This removes the highest-sensitivity free text │
-│ from the aggregated surface and the shoulder-surfing and screenshot exposure on the mission-creation       │
-│ screen. Contact names stay, because the history is not useful without knowing who was engaged. Whether     │
-│ notes need classification-based restriction is an institutional policy matter, and v1 does not decide      │
-│ it.', 'confidence': 0.8}, {'issue_id': 'C3', 'move': 'REVISED', 'response': "Staleness is a real risk, but │
-│ the fix does not need alerts or cleanup. Each contact shows its existing status or last-updated value from │
-│ the Contact record (A5). Deleted or merged contacts show 'Contact record removed'. The last-date and       │
-│ 24-month count use only dated records, and undated records are shown under an 'Undated' label rather than  │
-│ silently dropped. This is a read-only display over existing data with no new columns, no Regional          │
-│ Coordinator input, and no monitoring queue. Stale-contact alerts and data cleanup stay out of scope. Add   │
-│ them later if post-release feedback shows PMs acting on outdated contacts.", 'confidence': 0.7},           │
-│ {'issue_id': 'C4', 'move': 'REVISED', 'response': 'Two cheap fixes address the real harm of false          │
-│ reassurance and mission duplication. The panel and list share one permission-filtered query, so counts     │
-│ cannot disagree with the list. The panel carries a fixed label stating coverage limits (CRM records you    │
-│ can access; excludes off-system and pre-CRM history). The panel also shows the count of currently active   │
-│ missions in that country that the user can see, using the existing Mission status field. I am not adding   │
-│ disclosure of hidden records, because that would leak what permissions are meant to conceal. Whether PMs   │
-│ should learn that hidden active missions exist is a security and diplomatic-policy decision for a human,   │
-│ not a design call.', 'confidence': 0.65}, {'issue_id': 'C5', 'move': 'DEFENDED', 'response': 'Basic        │
-│ attribution is already in v1: the page-view log required for the adoption metric records user id, country  │
-│ id, and timestamp for the history tab and Engagement detail (A6), so a leak can be traced to viewers of a  │
-│ given country. What the Critic adds beyond that is an audit viewer, bulk-browsing detection, rate          │
-│ limiting, and retention rules. Those are expensive (a screen or queue someone must watch, plus alerting)   │
-│ and are not justified in v1. Bulk paging is bounded by the record-level permission filter from C1 and the  │
-│ removal of notes from lists (C2). A PM can already open every Country page they have access to today.      │
-│ Copy/paste cannot be prevented in software, and retention and security-review access to logs are           │
-│ institutional decisions for a human. I would add monitoring if a security review finds the logs            │
-│ insufficient or anomalous access patterns appear.', 'confidence': 0.65}]                                   │
+╭───────────────────────────────────── Round 2 · PROPOSER (Conf: 0.75) ──────────────────────────────────────╮
+│ Proposed Scope (In): ["Read-only 'Engagement History' tab on the existing Country record, showing a        │
+│ reverse-chronological timeline of existing Engagement records for that country (date, type, summary,       │
+│ contact, linked Mission/Project, logged-by). ['A1', 'A2']", "Pre-mission checkpoint: when a Project        │
+│ Manager opens the 'Create Mission' flow and selects a Country, show the last 5 Engagements the viewer is   │
+│ permitted to see, a derived cue 'Last engagement: N months ago' (computed from the most recent permitted   │
+│ engagement date), and a link 'View full history' that opens the Country Engagement History tab. If the     │
+│ viewer has no permitted engagements, show a neutral 'No engagement history available to you' message with  │
+│ no counts or summaries. It is informational only and does not block creation. ['A3', 'A4']", "Basic        │
+│ filters on the timeline over existing fields only: date range, engagement type, and linked                 │
+│ Mission/Project. ['A1']", "Visibility is enforced server-side, per record, on the aggregated history query │
+│ (tab and checkpoint panel alike), reusing the same access predicate that already governs read access to    │
+│ Engagement and Mission records. The summary text is covered by the same filter. A viewer sees only         │
+│ engagement records they can already see today, including engagements on missions they are not assigned to  │
+│ only if the existing model already allows it. No new roles, flags, per-country settings or new             │
+│ assignment-based rules. ['A4']", "Each timeline entry shows the contact name, linked from the existing     │
+│ Contact record, under a column labelled as the contact's current role. A derived 'Contact now inactive'    │
+│ badge is shown when the linked Contact's existing status is inactive or departed. The timeline does not    │
+│ backfill historical roles. ['A2', 'A5']", "Timeline query matches the A1 definition of linkage: an         │
+│ Engagement is included if it is linked to the Country directly, or via its Contact, Mission or Project,    │
+│ with duplicates removed. The query is paginated (page size 25) and runs against the existing Engagement    │
+│ table with indexes on the existing link columns (country, contact, mission, project, engagement_date). No  │
+│ new tables. ['A1', 'A2']", "Static caveat on the history tab and checkpoint panel: 'Shows logged           │
+│ engagements only; an empty or sparse history does not mean there was no contact.' This is always           │
+│ displayed, with no data entry and no per-country setting. ['A2']"]                                         │
+│ Assumptions: ["A1: 'Full history' means all Engagement records already linked to the Country (directly or  │
+│ via its Contacts, Missions and Projects), not a new history log or audit trail.", 'A2: Existing engagement │
+│ data is sufficiently complete and consistently linked to Country that a timeline is useful as-is; gaps are │
+│ shown, not fixed.', 'A3: Project Managers need the history surfaced at the moment they start a mission (a  │
+│ summary in the create-mission flow), and informing them is enough; no gating or sign-off is required.',    │
+│ "A4: Project Managers' current read access to Country, Mission and Engagement records is the right         │
+│ visibility boundary for this feature; whether any engagement content needs tighter classification is a     │
+│ policy question outside this MVP.", "A5: Showing the contact's current name/role/status from the Contact   │
+│ record is acceptable for history entries, even if the role has changed since the engagement."]             │
+│ Challenge Responses: [{'issue_id': 'C1', 'move': 'REVISED', 'response': "The risk is real, and the fix is  │
+│ cheap: it is a rule on the query, not a new model. The history tab and the Create Mission panel now apply  │
+│ the existing per-record access predicate server-side to the aggregated query, with summary text under the  │
+│ same filter. A cross-mission test and a no-access-country test are now success criteria. I am not          │
+│ inventing a new assignment-based rule. Whether PMs should see engagements on missions they were never      │
+│ assigned to is an access/classification policy decision for a human owner. If the existing model turns out │
+│ to be only Country-level read, that policy question must be routed to the security/data-classification     │
+│ owner before release, and this feature should not widen exposure beyond today's per-record rules.",        │
+│ 'confidence': 0.7}, {'issue_id': 'C2', 'move': 'REVISED', 'response': "A derived badge is cheap: it is a   │
+│ read-time check on the existing Contact status field, with no new column, table or data entry. The contact │
+│ column is now labelled as current role, and a 'Contact now inactive' badge appears when the linked Contact │
+│ is inactive or departed. I am deliberately not adding a contact_name_at_time snapshot: a new column would  │
+│ only populate going forward and could not fix the legacy history PMs are reading. I am also not adding a   │
+│ 'role changed' badge based on last-modified dates, since phone or email edits would create frequent false  │
+│ positives. If PM feedback shows role-change confusion on active contacts, add point-in-time role history   │
+│ in a later release.", 'confidence': 0.75}, {'issue_id': 'C3', 'move': 'REVISED', 'response': 'The Critic   │
+│ is right that the A1 definition and the original query were inconsistent. The fix is cheap: the query now  │
+│ follows the A1 linkage (direct country link, or via Contact, Mission or Project) with de-duplication,      │
+│ backed by indexes on existing link columns. Always-on static caveat text says an empty or sparse history   │
+│ does not mean no contact. A pre-release data check reports how many engagements link to a country only     │
+│ indirectly or not at all, so the completeness assumption is measured rather than assumed. I am not adding  │
+│ backfill or cleanup, since that is an open-ended data project. Engagements that resolve to no country by   │
+│ any path will remain invisible, and the caveat covers that residual risk.', 'confidence': 0.75},           │
+│ {'issue_id': 'C4', 'move': 'REVISED', 'response': "Two parts are adopted because they are cheap. (1) The   │
+│ panel uses the same server-side access filter as C1 and shows a neutral message with no counts or          │
+│ summaries when nothing is permitted, so selecting a country in the dropdown discloses nothing the PM       │
+│ cannot already see. (2) A derived 'Last engagement: N months ago' cue computed from the latest permitted   │
+│ engagement date conveys staleness without any new data. I am DEFENDING the cut on significance ranking: it │
+│ would need either a new importance field, which means Coordinator data entry, or a scoring model, and both │
+│ are out of scope. The residual risk of routine logs crowding the 5-item panel is bounded because the full  │
+│ filterable timeline is one click away. If view-through rates on the panel fall short of the 60% criterion, │
+│ or PM feedback shows important engagements being missed, consider an engagement-type filter default in a   │
+│ later release.", 'confidence': 0.7}]                                                                       │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭──────────────────────────────── Round 2 · CRITIC (Conf: 0.40, Ready: True) ────────────────────────────────╮
-│ • [C1 -> A2] (ACCEPTED): Original risk: a PM with broad Country-page access sees engagements from missions │
-│ they are not assigned to, so the aggregated history becomes a privilege-escalation path.                   │
-│   Eval: The revision removes the main risk. The history query now reuses the server-side                   │
-│ Engagement/Mission visibility check rather than Country-page access. Records the user cannot open are      │
-│ omitted from the list, counts and panel. The release gate includes the key test case, a PM with Country    │
-│ access but no access to a given mission. If the current model has no record-level visibility, the gate     │
-│ will expose that and it becomes a policy decision for the institution, which the Proposer has already said │
-│ it will route to a human. That is acceptable for an MVP.                                                   │
-│ • [C2 -> A2] (ACCEPTED): Original risk: notes summaries in list views and the pre-mission panel expose     │
-│ candid commentary on named officials to shoulder-surfing, screenshots, and PMs with only Country-level     │
-│ access.                                                                                                    │
-│   Eval: Notes and summaries are removed from the list and panel. Notes now appear only on the Engagement   │
-│ detail view, behind the existing permission check, and a success criterion verifies that no notes fields   │
-│ appear in list or panel API responses. This removes the highest-sensitivity content from the aggregated    │
-│ surface. Keeping contact names is justified by the feature's purpose.                                      │
-│ • [C3 -> A4] (ACCEPTED): Original risk: history shows contacts who have left or been replaced, and null    │
-│ dates distort the last-engagement date and 24-month count, giving a PM false reassurance.                  │
-│   Eval: The revision is adequate for an MVP. Each contact shows its existing status or last-updated value, │
-│ with 'status unknown' as the fallback. Deleted or merged contacts show 'Contact record removed'. Undated   │
-│ records are listed separately and excluded from the last-date and 24-month counts. This makes staleness    │
-│ visible without alerts or cleanup, and it adds no new fields or Regional Coordinator workload.             │
-│ • [C4 -> A3] (ESCALATED_TO_HUMAN): Remaining risk: a PM whose permissions hide another team's active       │
-│ mission sees a low or zero count and may launch a duplicate or conflicting mission.                        │
-│   Eval: Engineering mitigations are in place. The panel and list share one permission-filtered query, so   │
-│ they cannot disagree. A fixed coverage-limits label is shown. A count of active missions visible to the    │
-│ user is added. What remains is whether PMs should learn that hidden active missions exist, which trades    │
-│ confidentiality against duplicate-mission risk. That is a security and diplomatic-policy decision, not an  │
-│ engineering one, and the Proposer correctly declines to decide it.                                         │
-│ • [C5 -> A1] (ESCALATED_TO_HUMAN): Remaining risk: after a leak of contacts or notes, the institution must │
-│ be able to establish which PM viewed which country's history. Bulk paging across countries is possible.    │
-│   Eval: The defense is mostly sound. The existing page-view log records user id, country id and timestamp  │
-│ for both the history tab and Engagement detail views. That gives basic attribution without a new table or  │
-│ viewer. Bulk browsing is bounded by record-level filtering and by removing notes from lists, and a PM can  │
-│ already open every Country page they have access to. What remains is log retention, tamper-resistance and  │
-│ who may review the logs. Those are institutional security-governance decisions, so I am escalating them    │
-│ rather than arguing them further.                                                                          │
+╭──────────────────────────────── Round 2 · CRITIC (Conf: 0.45, Ready: True) ────────────────────────────────╮
+│ • [C1 -> A4] (ESCALATED_TO_HUMAN): Engineering has done its part: the existing per-record access predicate │
+│ is now applied server-side to the tab and the Create Mission panel, summary text is covered, and           │
+│ cross-mission and no-access-country tests are success criteria. What remains is whether the existing       │
+│ predicate is the right boundary. If it only grants Country-level read, a PM could read sensitive summaries │
+│ from missions they were never assigned to, such as a ministerial dispute or a back-channel contact. Only a │
+│ security or data-classification owner can decide that.                                                     │
+│   Eval: The Proposer correctly declines to invent an assignment-based rule and commits to not widening     │
+│ exposure beyond today's per-record rules. It also commits to routing the policy question to the security   │
+│ owner before release. That is the right division of labor. The remaining disagreement is institutional     │
+│ access policy, not an engineering gap.                                                                     │
+│ • [C2 -> A5] (ACCEPTED): The risk was that a 2022 engagement would show the new minister's name and title, │
+│ or a blank contact, so a PM would misread who was actually engaged. The derived 'Contact now inactive'     │
+│ badge and the 'current role' column label address this. A replaced contact who stays active under a new    │
+│ role is not flagged, but the label bounds that residual risk for an MVP.                                   │
+│   Eval: The revision adds a read-time badge on the existing status field, with no new columns or data      │
+│ entry, and a fixture test for badge correctness. The Proposer reasonably rejects a last-modified 'role     │
+│ changed' badge as a false-positive generator, which matches the alert-fatigue concern. Accepted for an     │
+│ MVP.                                                                                                       │
+│ • [C3 -> A2] (ACCEPTED): The query-versus-definition mismatch is resolved. The query now follows the A1    │
+│ linkage (direct, or via Contact, Mission or Project) with de-duplication. An always-on caveat says a       │
+│ sparse history does not mean no contact. A pre-release data check counts indirectly linked and             │
+│ unresolvable engagements. Engagements that resolve to no country remain invisible, but the caveat and the  │
+│ measurement cover that residual risk for an MVP.                                                           │
+│   Eval: The Proposer concedes the inconsistency and fixes it with the query, the caveat and a measurement  │
+│ criterion, rather than backfilling data. This adequately bounds the false-sense-of-nothing-happened risk.  │
+│ • [C4 -> A3] (ACCEPTED): The panel now uses the same access filter as C1 and shows a neutral message with  │
+│ no counts when nothing is permitted, so selecting a country discloses nothing new. The 'Last engagement: N │
+│ months ago' cue addresses staleness. The significance-ranking defense is acceptable: ranking would need    │
+│ new data entry or scoring, and the full filterable timeline is one click away. A minor residual is that    │
+│ the cue is computed from permitted records only, but it is bounded.                                        │
+│   Eval: Two of the three asks are adopted, and the defense of the third is credible. It is bounded by the  │
+│ 60% view-through criterion and a stated trigger for revisiting the decision. Accepted for an MVP.          │
 │                                                                                                            │
 │ Disagreement Score: 0.0 | Gate Status: CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED                        │
 │ (CRITIC_SIGNALED_CONVERGENCE)                                                                              │
@@ -197,173 +186,163 @@ before starting a new mission.
 before starting a new mission.
 
 **Termination Reason:** `CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)` | **Final
-Disagreement Score:** `0.0` | **Confidence (Proposer / Critic):** `0.74` / `0.40`
+Disagreement Score:** `0.0` | **Confidence (Proposer / Critic):** `0.75` / `0.45`
 
 ## Executive Summary
-V1 is a read-only view over existing CRM data: notes appear only on the Engagement detail view, every history 
-query applies record-level Engagement/Mission visibility, contacts show their current status, and views are 
-recorded in the existing page-view log. The main trade-off argued was confidentiality versus usefulness. The 
-Critic pushed back on exposing notes, broad Country-page access, stale contacts and weak audit trails, and the
-Proposer narrowed scope instead of adding new roles, fields or audit tooling. Still awaiting a human decision 
-are the Engagement History tab, the pre-mission panel, the list filters, and the automatic population of 
-history from existing data. These are all pending on C5, and the panel also on C4. C4 asks whether PMs should 
-learn that hidden active missions exist. C5 asks about log retention, tamper-resistance and who may review the
-logs.
+V1 adds a read-only Engagement History tab on the Country record. It shows a paginated, filterable timeline 
+built from existing Engagement records, found by direct or indirect linkage to the country, with a 'Contact 
+now inactive' badge, a contact column labelled as current role, and an always-on caveat that a sparse history 
+does not mean there was no contact. The main trade-off argued was how cheaply the Critic's concerns about 
+misleading history and data exposure could be met without new data entry, tables or gating. Contact staleness,
+incomplete linkage and the panel's staleness cue were resolved (C2, C3, C4) with derived or read-time fixes. 
+The pre-mission checkpoint in Create Mission and server-side per-record visibility enforcement are pending a 
+human decision on C1, and so is the access-testing success criterion. That decision is whether the existing 
+access predicate is the right visibility boundary for aggregated engagement history.
 
 ## 1. Agreed Scope
 ### Included in Scope (v1 MVP)
-- Engagement detail: notes are visible only on the existing Engagement detail view, under the existing 
-Engagement/Mission permission check. No notes are shown in the history list or the pre-mission panel.
-- Record-level visibility: the history query applies the same server-side Engagement/Mission visibility check 
-used when a user opens an Engagement directly. It does not use mere access to the Country page as the test. 
-Records the user cannot open today are omitted from list, counts, and panel. Release gate: a permission test 
-matrix covers a PM with Country access but no access to a given mission.
-- Contact currency display: each contact in the history shows the current status or last-updated date from the
-existing Contact record, read-only. Deleted or merged contacts render as 'Contact record removed'. 'Last 
-engagement date' and the 24-month count use only records with a valid date. Undated records appear in the list
-under an 'Undated' label and are reported separately, not silently dropped or counted.
-- Access logging: views of the history tab and Engagement detail are recorded in the existing page-view log 
-(user id, country id, timestamp). This is the same log already required for the adoption metric. No new table,
-viewer, or alerting.
+- Read-only 'Engagement History' tab on the existing Country record, showing a reverse-chronological timeline 
+of existing Engagement records for that country (date, type, summary, contact, linked Mission/Project, 
+logged-by).
+- Basic filters on the timeline over existing fields only: date range, engagement type, and linked 
+Mission/Project.
+- Each timeline entry shows the contact name, linked from the existing Contact record, under a column labelled
+as the contact's current role. A derived 'Contact now inactive' badge is shown when the linked Contact's 
+existing status is inactive or departed. The timeline does not backfill historical roles.
+- Timeline query matches the A1 definition of linkage: an Engagement is included if it is linked to the 
+Country directly, or via its Contact, Mission or Project, with duplicates removed. The query is paginated 
+(page size 25) and runs against the existing Engagement table with indexes on the existing link columns 
+(country, contact, mission, project, engagement_date). No new tables.
+- Static caveat on the history tab and checkpoint panel: 'Shows logged engagements only; an empty or sparse 
+history does not mean there was no contact.' This is always displayed, with no data entry and no per-country 
+setting.
 
 ### Pending Human Decision (relies on an escalated issue)
-- Read-only 'Engagement History' tab on the existing Country page, listing existing Engagement records for 
-that country in reverse-chronological order (date, type, contact, linked mission/project with an 'Active' 
-badge from the existing Mission status). The list does NOT show notes or a notes summary. *(waits on C5)*
-- Pre-mission view: on the new-mission creation screen, once a Country is selected, show a read-only panel 
-with last engagement date, count of engagements in the past 24 months, count of currently active missions in 
-that country, and a link to the full Country history. The panel uses the same permission-filtered query as the
-history list, so count and list cannot disagree. It carries a fixed label: 'Based on CRM records you can 
-access. Excludes off-system and pre-CRM history.' *(waits on C4, C5)*
-- Filters on the history list using existing fields only: date range, engagement type, contact, and linked 
-mission/project; with pagination and on-screen viewing only. *(waits on C5)*
-- History is populated automatically from data already captured (engagements, missions, project affiliations).
-No new mandatory fields for Regional Coordinators. *(waits on C5)*
+- Pre-mission checkpoint: when a Project Manager opens the 'Create Mission' flow and selects a Country, show 
+the last 5 Engagements the viewer is permitted to see, a derived cue 'Last engagement: N months ago' (computed
+from the most recent permitted engagement date), and a link 'View full history' that opens the Country 
+Engagement History tab. If the viewer has no permitted engagements, show a neutral 'No engagement history 
+available to you' message with no counts or summaries. It is informational only and does not block creation. 
+*(waits on C1)*
+- Visibility is enforced server-side, per record, on the aggregated history query (tab and checkpoint panel 
+alike), reusing the same access predicate that already governs read access to Engagement and Mission records. 
+The summary text is covered by the same filter. A viewer sees only engagement records they can already see 
+today, including engagements on missions they are not assigned to only if the existing model already allows 
+it. No new roles, flags, per-country settings or new assignment-based rules. *(waits on C1)*
 
 ### Explicitly Excluded from Scope
-- Any new data-entry fields or forms for Regional Coordinators (e.g., mandatory outcome ratings, sensitivity 
-tags).
-- Back-filling or cleaning historical engagement data that was never recorded in the CRM (e.g., paper files, 
-email archives, legacy systems).
-- AI-generated summaries, scoring, sentiment, or recommendations about a country's relationship.
-- Per-record or per-country confidentiality classification and new RBAC roles; classification decisions stay 
-with the institution.
-- Gate or approval workflow that blocks mission creation until history is reviewed or acknowledged.
-- Cross-country or portfolio-wide history search and analytics dashboards.
-- Export (CSV/PDF) and printing of the history.
-- Automatic alerts or notifications about stale contacts or lapsed engagement.
-- Notes summaries or any free-text notes content in list views or the pre-mission panel.
-- Audit-log viewer UI, bulk-browsing detection, rate limiting, or log retention policy (retention and 
-security-review access are institutional decisions).
-- Disclosing the existence or count of records hidden by permissions, or showing missions the user cannot 
-access.
+- Any new data-entry fields or forms for Regional Coordinators; the history only reads what is already logged
+- Mandatory acknowledgement, approval or gating step before a mission can be created
+- AI/automated summaries, sentiment or relationship scoring of engagement history
+- Historical backfill or cleaning of legacy engagement records; data is shown as-is
+- Point-in-time contact role/title history (valid_from/valid_to) or contact-name-at-time snapshot columns; 
+current contact details plus an inactive badge are shown only
+- Cross-country or regional aggregate views and exports (CSV/PDF)
+- Per-record or per-country sensitivity flags and custom RBAC; any change to data classification is a human 
+policy decision
+- Alerts or notifications about stale or missing engagement history
+- Editing engagement records from the history view
+- Significance ranking, importance flags or filtering of routine logs for the 'last 5' panel
+- New assignment-based visibility rules for engagement history; who may see which engagements is a human 
+access-policy decision
 
 ### Success Criteria
-- A project manager can reach a country's full engagement history in 2 clicks or fewer from the new-mission 
-creation screen.
-- The history tab loads the first page (up to 50 records) in under 2 seconds at the 95th percentile for the 
-country with the largest record count.
-- Zero new required fields are added to any Regional Coordinator workflow, verified by comparing form schemas 
-before and after release.
-- Permission test: 100% of test cases in a matrix (Country access with and without access to a given mission 
-or engagement) confirm a user sees only engagement records they can already open directly, in list, counts, 
-and panel.
-- In 100% of test cases the pre-mission panel count equals the permission-filtered list total, and the panel 
-always shows the coverage-limits label.
-- Zero notes or notes-summary fields appear in the list or panel API responses; notes appear only on the 
-Engagement detail view.
-- 100% of contacts in the history display a status or last-updated value, or 'status unknown' / 'Contact 
-record removed'; undated records are excluded from the last-date and 24-month count and shown under an 
-'Undated' label.
-- Within 60 days of release, at least 50% of new missions have the country history viewed by the creating 
-project manager within 7 days before mission creation, measured via page-view logs that include user id, 
-country id, and timestamp.
+- For 100% of countries, the Country Engagement History tab loads the first page (25 entries) in under 2 
+seconds at p95 on production-scale data, using the multi-link query.
+- When a Project Manager selects a country in the Create Mission flow, the last 5 permitted engagements and 
+the 'Last engagement: N months ago' cue are shown without extra clicks, and 'View full history' is reachable 
+in one click.
+- Zero new required fields or forms are added for Regional Coordinators, verified by schema and UI review 
+before release.
+- Within 60 days of release, at least 60% of newly created missions have the country's history tab or panel 
+viewed in the same session, measured via view-event logging.
+- A pre-release check on production data reports the count of Engagement records included only via 
+Contact/Mission/Project linkage (no direct country link) and the count that resolve to no country at all. The 
+history query returns 100% of the records that resolve to a country by any A1 path in a fixture test.
+- In fixture tests, 100% of timeline entries whose linked Contact has inactive or departed status display the 
+'Contact now inactive' badge, and 0 entries display it otherwise.
+- *Pending:* In access testing, 0 engagement records (including summary text) are visible to a Project Manager
+through the history tab or the Create Mission panel that are not visible to them through the existing 
+Engagement/Mission read path. The test suite includes a cross-mission case (PM assigned to Mission A cannot 
+see Mission B engagements where the existing model denies it) and a case of selecting a country the PM has no 
+access to. *(waits on C1)*
 
 ## 2. Surfaced Assumptions & Deliberation Outcomes
-- **[A1] 'Full history of engagement' means the engagement records already stored in the CRM (Engagement, 
-Mission, Project affiliation entities), not off-system communications or pre-CRM records.** (Challenged: 
-`True` -> Disposition: `ESCALATED_TO_HUMAN`)
-  - *Notes:* Challenged via C5 (no audit trail for access, bulk browsing). The Proposer defended using the 
-existing page-view log, and the Critic escalated the remaining governance questions to a human, so C5 ended 
-ESCALATED_TO_HUMAN.
-- **[A2] Project managers already have permission to view the country and mission records they work on, and 
-the history view can inherit those existing permissions without new access rules.** (Challenged: `True` -> 
-Disposition: `REVISED_AND_ACCEPTED`)
-  - *Notes:* C1 (Country-page access broader than Engagement visibility) and C2 (notes exposure in list and 
-panel) were both revised by the Proposer and accepted by the Critic. The history query now uses record-level 
-Engagement/Mission checks and notes appear only on the detail view.
-- **[A3] 'Before starting a new mission' means the history should be surfaced at mission-creation time as an 
-informational aid, not enforced as a required step.** (Challenged: `True` -> Disposition: 
-`ESCALATED_TO_HUMAN`)
-  - *Notes:* C4 (passive panel could give false reassurance or lead to duplicate missions) was revised with a 
-shared permission-filtered query, a coverage-limits label and an active-mission count. The Critic then 
-escalated it to a human, so C4 ended ESCALATED_TO_HUMAN.
-- **[A4] The existing engagement data is recorded consistently enough (date, country, contact, type) to 
-produce a useful chronological view without a cleanup project.** (Challenged: `True` -> Disposition: 
-`REVISED_AND_ACCEPTED`)
-  - *Notes:* C3 (stale or removed contacts, missing dates distorting counts) was revised with contact status 
-display, a 'Contact record removed' label and an 'Undated' bucket excluded from counts. The Critic accepted 
-it, so C3 ended ACCEPTED.
-- **[A5] The existing Contact entity already carries a status or last-updated indicator that can be displayed 
-read-only next to a contact name; if neither exists, the history shows 'status unknown' instead of adding a 
-field.** (Challenged: `False` -> Disposition: `ACCEPTED`)
-  - *Notes:* Added by the Proposer in round 2 to support the C3 fix. No Critic issue targeted it, and it was 
-not challenged.
-- **[A6] The existing page-view logging (already needed to measure adoption) can record user id, country id, 
-and timestamp for the history tab and Engagement detail views.** (Challenged: `False` -> Disposition: 
+- **[A1] 'Full history' means all Engagement records already linked to the Country (directly or via its 
+Contacts, Missions and Projects), not a new history log or audit trail.** (Challenged: `False` -> Disposition:
 `ACCEPTED`)
-  - *Notes:* Added by the Proposer in round 2 to support access logging in response to C5. No Critic issue 
-targeted it directly, and it was not challenged.
+  - *Notes:* No issue challenged this assumption, so it was accepted as stated. C3 later required the query to
+follow its definition of linkage.
+- **[A2] Existing engagement data is sufficiently complete and consistently linked to Country that a timeline 
+is useful as-is; gaps are shown, not fixed.** (Challenged: `True` -> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C3 challenged data completeness and linkage. It was resolved with a multi-link query, an 
+always-on caveat and a pre-release data check, and the Critic accepted it, so the assumption was revised and 
+accepted.
+- **[A3] Project Managers need the history surfaced at the moment they start a mission (a summary in the 
+create-mission flow), and informing them is enough; no gating or sign-off is required.** (Challenged: `True` 
+-> Disposition: `REVISED_AND_ACCEPTED`)
+  - *Notes:* C4 challenged the checkpoint's usefulness and exposure. The Proposer added the access filter and 
+a 'Last engagement: N months ago' cue, defended the exclusion of significance ranking, and the Critic 
+accepted, so the assumption was revised and accepted. The checkpoint's inclusion remains pending C1.
+- **[A4] Project Managers' current read access to Country, Mission and Engagement records is the right 
+visibility boundary for this feature; whether any engagement content needs tighter classification is a policy 
+question outside this MVP.** (Challenged: `True` -> Disposition: `ESCALATED_TO_HUMAN`)
+  - *Notes:* C1 challenged whether the existing access model is the right visibility boundary. The Proposer 
+committed to applying the existing per-record predicate server-side, and the Critic escalated the policy 
+question to a human, so the assumption is escalated to human.
+- **[A5] Showing the contact's current name/role/status from the Contact record is acceptable for history 
+entries, even if the role has changed since the engagement.** (Challenged: `True` -> Disposition: 
+`REVISED_AND_ACCEPTED`)
+  - *Notes:* C2 challenged showing current contact details on historical entries. The Proposer added a 
+'Contact now inactive' badge and a current-role label, and the Critic accepted, so the assumption was revised 
+and accepted.
 
 ## 3. Open Questions Requiring Human / Policy Sign-Off
-- **[C4] Head of Diplomatic Security (with the Product Owner):** Should a project manager be told that active 
-missions exist in a country that their permissions hide, so they do not launch a duplicate or conflicting 
-mission? Engineering has made the panel count match the permission-filtered list, added a coverage-limits 
-label and an active-mission count the user can see. Whether to disclose hidden missions trades confidentiality
-against duplicate-mission risk, and engineering cannot make that policy call.
-  - *Why it is here:* The Critic escalated it as a policy question outside engineering's authority.
-- **[C5] Head of Information Security (with Legal):** Is the existing page-view log (user id, country id, 
-timestamp) enough as the audit trail for access to country engagement history? If not, what log retention 
-period, tamper-resistance, and security-review access should apply? The Critic escalated these because they 
-are institutional security-governance decisions. V1 deliberately excludes an audit viewer, bulk-browsing 
-detection and rate limiting.
+- **[C1] Unassigned: product owner to route (likely the security or data-classification owner):** Engineering 
+cannot decide this access policy. The history tab and Create Mission panel will reuse the existing per-record 
+read predicate for Engagement and Mission records, summary text included, and will add no new assignment-based
+rules. Is that predicate an acceptable visibility boundary for an aggregated country history, which could let 
+a Project Manager read sensitive summaries from missions they were never assigned to, such as a ministerial 
+dispute or back-channel contact? Or must access be restricted further by a policy owned by a human? The answer
+determines whether the pre-mission checkpoint, server-side visibility enforcement and the access-testing 
+criterion can proceed.
   - *Why it is here:* The Critic escalated it as a policy question outside engineering's authority.
 
 ## 4. Issue Ledger (computed by the engine)
 | Issue | Assumption | Proposer moves | Rounds challenged | Final state | Challenge |
 |---|---|---|---|---|---|
-| C1 | A2 | REVISED | 1 | `ACCEPTED` | A2 assumes project managers' existing permissions are 
-per-country/per-mission and can simply be inherited. But 'full country history' aggregates engagements from 
-every mission, including missions the PM is not assigned to. If today's permission model grants Country-page 
-access broadly (e.g., all PMs can open any Country page) while Engagement records were only visible via the 
-missions they work on, a PM on a trade mission with Country X could now see notes and contacts from a 
-sensitive security or political mission run by another team. The new aggregated view becomes a 
-privilege-escalation path. The proposal states 'sees only records they could already see' but never verifies 
-that engagement-level visibility exists in the current model rather than being implicit via the UI path. |
-| C2 | A2 | REVISED | 1 | `ACCEPTED` | The history list shows a 'notes summary' and contact names for each 
-engagement. Engagement notes frequently contain candid commentary about ministry officials, negotiating 
-positions, or political context. Surfacing a notes summary in a list view, and in a pre-mission panel on the 
-creation screen, widens exposure: shoulder-surfing, screenshots, and PMs from a different team with only 
-Country-level access see candid notes about named ministry officials. Notes and contact details are the most 
-confidentiality-sensitive fields, yet they are included by default with no field-level restriction. |
-| C3 | A4 | REVISED | 1 | `ACCEPTED` | A4 assumes engagement data is consistent enough, but with ~100 
-countries and frequent turnover of both ministry contacts and Regional Coordinators, engagement records will 
-reference contacts who have since left, been replaced, or been deleted/merged. The history would show a 
-contact name with no indication that the person is no longer in post. A PM could then plan a mission around a 
-former minister or an outdated counterpart, and a wrong ministry contact can damage the relationship. Missing 
-or null contacts or dates would also silently distort the 'last engagement date' and the 24-month count, 
-giving false reassurance that a country is 'recently engaged'. |
-| C4 | A3 | REVISED | 1 | `ESCALATED_TO_HUMAN` | The pre-mission panel shows 'last engagement date' and a 
-24-month count, with a link to history, but it is purely passive. A PM who sees '12 engagements' may take it 
-as complete coverage, when A1 says off-system and pre-CRM records are excluded and some records are hidden by 
-permissions. A PM with restricted access could see a low or zero count and conclude the country is untouched, 
-then launch a duplicate or conflicting mission while another team's mission is active. The summary counts also
-may not reflect permission filtering consistently with the list, so count and list could disagree or leak the 
-existence of hidden records. |
-| C5 | A1 | DEFENDED | 1 | `ESCALATED_TO_HUMAN` | Success criteria measure speed and page views but there is 
-no audit trail for access to a country's full engagement history. If a contact list or notes leak, there is no
-way to establish which PM viewed which country's history. The proposal's new aggregated view makes bulk 
-browsing of 100 countries' histories easy, and the cross-country search is out of scope but a PM can still 
-page through every country one by one. On-screen only does not prevent copy/paste. |
+| C1 | A4 | REVISED | 1 | `ESCALATED_TO_HUMAN` | A Project Manager on a Mission in Country X inherits 'current
+read access' to Country, Mission and Engagement records. Today that access is likely scoped per mission or 
+screen, and engagement notes are scattered across records. A 'full history' timeline aggregates every 
+Engagement for the country in one view, including engagements logged against other missions, other ministries 
+and prior coordinators. A PM can then read sensitive summaries (for example a ministerial dispute or a 
+back-channel contact) from engagements on missions they were never assigned to. The criterion 'visible through
+existing screens' does not test this, because existing screens never presented the aggregate. Least-privilege 
+needs an explicit rule: the history is filtered by the viewer's mission or country assignment at query time, 
+not just by Country-level read permission, and the summary text is covered by the same filter. The 
+cross-mission case needs a test. |
+| C2 | A5 | REVISED | 1 | `ACCEPTED` | Each timeline entry links to the Contact's current name, role and 
+status. When a minister or ministry official is replaced, a 2022 engagement with the 'Minister of Trade' will 
+display the new minister's name and title, or a deactivated or blank contact. A PM could then believe the 
+current minister was engaged on a past sensitive topic, or contact a departed official, and so misread the 
+relationship history and send the wrong message. Without at least a snapshot of name/role as logged 
+(contact_name_at_time) or a visible 'contact since changed / inactive' badge, the history silently misleads 
+under the turnover this CRM faces. A badge needs no new tables. |
+| C3 | A2 | REVISED | 1 | `ACCEPTED` | The Proposer assumes engagement data is complete and consistently 
+linked to Country, with gaps simply shown. Engagements linked only via a Contact, Mission or Project (A1) may 
+have no direct country_id, and the index on (country_id, engagement_date) will not return them. A PM looking 
+at the timeline for Country X sees a quiet history and concludes no prior engagement, when a recent difficult 
+meeting was logged under a contact or mission without country_id. This false sense of 'nothing happened' leads
+to a mission launched without context. An empty or sparse timeline needs an explicit caveat, and the query 
+must match the A1 definition of linkage (direct or via Contact/Mission/Project), or the definition must be 
+narrowed. |
+| C4 | A3 | REVISED | 1 | `ACCEPTED` | The pre-mission checkpoint shows the last 5 engagements whenever a PM 
+selects a country in Create Mission, and success is measured by 60% of new missions having history viewed. The
+'last 5' are purely recency-ordered, so routine low-value logs (scheduling emails) can push out the one 
+important engagement. With no signal of significance or of how stale the latest entry is, PMs learn to skim 
+past the panel. Also, the panel fires before the PM has any assignment to the country or mission. Selecting a 
+country in the dropdown should not display engagement summaries for countries the PM does not work on. The 
+panel needs the same access filter as C1 and a 'last engagement was N months ago' cue so it conveys useful 
+information. |
 
 Summarizer output matched the ledger; no corrections needed.

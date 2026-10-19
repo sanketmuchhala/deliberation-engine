@@ -1,136 +1,179 @@
 {
-  "feature_request": "The CRM should alert us when our relationship with a country goes cold.",
+  "feature_request": "We need a better way to track who is the right person to contact in each country.",
   "rounds": [
     {
       "round": 1,
       "proposer": {
         "proposed_scope_in": [
           {
-            "item": "Nightly job computes last_engagement_date per Country as the most recent existing Engagement record linked to any Contact, Mission, or Project of that country. This is derived on the fly with no new entity or manual field.",
+            "item": "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "A country is flagged 'cold' when days since last_engagement_date exceeds a single global threshold, default 90 days, set as one system config value and not per country. Countries with no Engagement history are flagged once at go-live with a 'no recorded engagement' label.",
+            "item": "A one-line 'why' under each recommendation, built from existing fields (e.g. 'Last engaged 12 Jan; lead on Project X'). The recommendation is labelled advisory.",
+            "assumption_ids": [
+              "A2",
+              "A5"
+            ]
+          },
+          {
+            "item": "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "On transition to cold, the system creates one in-app notification for the Regional Coordinator(s) already assigned to the country. It includes the last engagement date, the last contact engaged, and a link to the Country record.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Weekly email digest to each Regional Coordinator listing their currently cold countries, with the same fields as the notification. Re-reminder at most every 30 days while a country stays cold.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Alert auto-clears when a new Engagement is logged for the country. No acknowledge, snooze, or dismiss action is required of the coordinator.",
-            "assumption_ids": [
-              "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "Notification and digest visibility inherits the existing Country/Mission access model, so users only see alerts for countries they can already see.",
+            "item": "A 'may be outdated' badge on any recommended contact with no logged Engagement in the last 180 days. The threshold is a single global constant, not a per-country setting.",
             "assumption_ids": [
               "A3"
+            ]
+          },
+          {
+            "item": "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A one-click 'No longer in post' action on the contact card sets that existing status; there is no new field and no approval step.",
+            "assumption_ids": [
+              "A6"
+            ]
+          },
+          {
+            "item": "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. No new RBAC is added.",
+            "assumption_ids": [
+              "A4"
+            ]
+          },
+          {
+            "item": "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated.",
+            "assumption_ids": [
+              "A2",
+              "A1"
             ]
           }
         ],
         "proposed_scope_out": [
-          "Sentiment, relationship-health, or ML scoring of engagement quality",
-          "Per-country, per-region, or per-contact thresholds and any settings someone must maintain per country",
-          "Dashboards, 'cold countries' lists or queues, and cross-country ranking views",
-          "Snooze, acknowledge, dismiss, approval, or escalation workflows",
-          "Automatic ingestion of email, calendar, or phone activity to infer engagement",
-          "New entities or tables, and new required fields for Regional Coordinators",
-          "Alert delivery to channels outside the CRM (SMS, chat) and to users outside existing access roles",
-          "Defining which countries or relationships are strategically priority, or what counts as 'cold' diplomatically. This is a policy decision for humans and not a product-design decision."
+          "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
+          "New tables or entities for routing rules, contact preferences or a topic taxonomy",
+          "Per-country or per-user configuration of staleness thresholds or ranking weights",
+          "Approval, review or verification workflows for contact changes",
+          "Alerts, notification queues, or dashboards of stale contacts across countries",
+          "ML or scoring models for contact ranking",
+          "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
+          "Automated verification of contact validity via email bounce, external directories or ministry feeds",
+          "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
+          "Bulk import or cleanup tooling for historical contact data"
         ],
         "assumptions": [
           {
             "assumption_id": "A1",
-            "statement": "'Cold' means no logged Engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days.",
-            "rationale": "A single time-since-last-engagement rule is a deterministic query over existing Engagement data. It needs no scoring model, no per-country configuration, and no new schema, so a small team can ship and explain it in one release."
+            "statement": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
+            "rationale": "Reusing existing role types avoids a new taxonomy and schema. It covers the most common 'who do I call' lookups without anyone maintaining a new list."
           },
           {
             "assumption_id": "A2",
-            "statement": "Engagement records already in the CRM are logged as part of normal work and are complete enough to act as the activity signal; Regional Coordinators will not be asked to enter anything extra.",
-            "rationale": "Deriving the alert from existing data honors the zero-data-entry constraint. Asking coordinators to log 'relationship status' fields would rot quickly and defeat the feature."
+            "statement": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
+            "rationale": "Deriving the answer from data already captured gives zero extra data-entry friction for busy Regional Coordinators, and needs no schema change."
           },
           {
             "assumption_id": "A3",
-            "statement": "Each country already has an assigned Regional Coordinator in the existing access model, and alerts go to that person and respect existing Country/Mission permissions.",
-            "rationale": "Reusing existing assignment and permissions avoids building a new RBAC or routing system and bounds who can see alert data to those who can already see the country."
+            "statement": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
+            "rationale": "One constant is cheap to build, test and explain. A per-country setting would need maintenance across ~100 countries and would rot."
           },
           {
             "assumption_id": "A4",
-            "statement": "In-app notification plus a weekly email digest is sufficient timeliness; real-time alerting is not needed because relationships go cold over weeks, not hours.",
-            "rationale": "A nightly batch job and a weekly digest are cheap to build and test, and they avoid alert fatigue and event-streaming infrastructure."
+            "statement": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
+            "rationale": "Inheriting existing permissions avoids building a new access model. It bounds the risk of exposing contacts to users who should not see them."
+          },
+          {
+            "assumption_id": "A5",
+            "statement": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
+            "rationale": "Protocol and precedence are diplomatic policy, outside product design. Staying advisory keeps the rule simple and transparent and avoids inventing policy."
+          },
+          {
+            "assumption_id": "A6",
+            "statement": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
+            "rationale": "Using an existing field with a one-click action adds no schema and no new workflow. The staleness badge covers contacts nobody has flagged."
           }
         ],
         "success_criteria": [
-          "100% of countries crossing the 90-day no-engagement threshold generate exactly one in-app notification within 24 hours of crossing, verified by back-testing against historical Engagement data",
-          "Alerts auto-clear within 24 hours of a new Engagement being logged for that country",
-          "No country receives more than one re-reminder per 30 days while it stays cold",
-          "Zero new fields or manual steps are required of Regional Coordinators; the feature runs entirely on existing records",
-          "Back-test at launch: no more than 25% of ~100 countries are flagged cold on day one. If the share is higher, the threshold is reviewed before release to prevent alert fatigue.",
-          "Weekly digest delivered to 100% of Regional Coordinators who have at least one cold country in their portfolio"
+          {
+            "criterion": "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
+            "assumption_ids": [
+              "A2"
+            ]
+          },
+          {
+            "criterion": "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
+            "assumption_ids": [
+              "A1",
+              "A2"
+            ]
+          },
+          {
+            "criterion": "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the 'may be outdated' badge, and none with a more recent Engagement do.",
+            "assumption_ids": [
+              "A3"
+            ]
+          },
+          {
+            "criterion": "In permission tests, 0 contacts or countries appear in the panel or filtered search for a user who lacks access to that country or mission under existing rules.",
+            "assumption_ids": [
+              "A4"
+            ]
+          },
+          {
+            "criterion": "100% of recommendations display a 'why' line and an advisory label, and 0 inactive or departed contacts are recommended in the test dataset.",
+            "assumption_ids": [
+              "A5",
+              "A6"
+            ]
+          }
         ],
         "challenge_responses": [],
-        "overall_confidence": 0.62
+        "overall_confidence": 0.72
       },
       "critic": {
         "challenges": [
           {
             "issue_id": "C1",
-            "target_assumption_id": "A1",
-            "challenge_text": "A single global 90-day threshold treats Norway and a country with one biannual ministerial cycle identically. Countries with seasonal or low-frequency diplomatic rhythms (parliamentary recess, elections, summit-driven cadence) will be flagged cold every cycle while being perfectly healthy. Regional Coordinators will quickly learn these are noise and start ignoring the digest, so the one genuinely cold high-priority country gets lost in the same pile. The 25% day-one cap still allows ~25 flagged countries, which is already a fatigue-level volume for a coordinator portfolio of perhaps 10-15 countries. Whether 90 days is the right definition of cold is a policy question, but there must be a bounded engineering mitigation, such as a coordinator-visible reason or an exclusion for countries in an active mission.",
-            "evaluation_of_proposer": "Proposer explicitly scopes out per-country thresholds and defers the definition of cold to humans, but ships a hardcoded global default with no mechanism to avoid flagging countries with active missions or known low-cadence relationships. This leaves a real false-positive risk unaddressed.",
-            "status": "CHALLENGED",
-            "confidence": 0.75
-          },
-          {
-            "issue_id": "C2",
             "target_assumption_id": "A2",
-            "challenge_text": "The signal is last logged Engagement, but logging is voluntary and uneven. A coordinator who is in weekly phone contact with a ministry but has not logged it will trigger a false 'cold' alert, while a country where an intern bulk-logged a mass-email Engagement looks warm. Turnover compounds this: when a coordinator leaves or a country is reassigned, the backlog of unlogged contact makes the countries look cold exactly when handover is weakest. Also, 'any Engagement of any type' lets low-value records (automated or mass-distribution mailings, a logged circular) reset the clock, hiding a truly cold relationship. The 'complete enough' assumption is untested; the day-one back-test only measures how many are flagged, not whether those flags are true.",
-            "evaluation_of_proposer": "A2 is stated as an assumption with no validation. The back-test success criterion checks only the volume of flags and not their accuracy, so the risk of false positives and false negatives from poor logging data is unmitigated.",
-            "status": "CHALLENGED",
-            "confidence": 0.7
-          },
-          {
-            "issue_id": "C3",
-            "target_assumption_id": "A3",
-            "challenge_text": "Assumes every country has a current, correct Regional Coordinator. With turnover across 100 countries, some countries will have no coordinator, a departed one (account deactivated), or a stale assignment. The alert then goes to nobody or to the wrong person, and the country silently stays cold with no fallback; the exact failure the feature exists to prevent. In the other direction, a former coordinator who still holds Country access could keep receiving emails with last-contact names for a country they no longer work on. The proposal has no handling for unassigned or inactive recipients.",
-            "evaluation_of_proposer": "A3 asserts the assignment exists but provides no fallback or detection when it does not, and no check that the recipient is still active and authorized at send time.",
-            "status": "CHALLENGED",
-            "confidence": 0.75
-          },
-          {
-            "issue_id": "C4",
-            "target_assumption_id": "A3",
-            "challenge_text": "The alert and the weekly email include the name of the last contact engaged. Email digests leave the CRM's access-controlled boundary: they sit in mailboxes, are forwarded, are synced to phones, and persist after a user's CRM access is revoked. 'Inherits Country/Mission access' only holds at render time in-app, not for an email sent at 06:00 that is read later. Contact names tied to a country and a 'relationship cold' label are diplomatically sensitive. Also, Engagements may be restricted by mission or classification, so if last_engagement_date or last contact is derived from a restricted Engagement, the alert can leak the existence and the contact of an engagement the recipient cannot see in the CRM. The nightly job computes across all engagements, so it is unclear whether it runs with the recipient's permissions.",
-            "evaluation_of_proposer": "The proposal treats the email digest as equivalent to in-app visibility. It does not state whether the derived fields are filtered per recipient or whether contact names appear in email bodies, so confidentiality leakage via email and restricted-Engagement derivation is unaddressed.",
+            "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
+            "evaluation_of_proposer": "A2 is asserted as 'accurate enough' with no evidence. Success criterion 1 measures only that a recommendation appears (90% coverage), not that it is correct, so the metric rewards confident wrong answers. No validation against real data is planned.",
             "status": "CHALLENGED",
             "confidence": 0.8
           },
           {
-            "issue_id": "C5",
-            "target_assumption_id": "A1",
-            "challenge_text": "The go-live behavior and the transition semantics are ill-defined. Countries with no Engagement history are flagged once at go-live; for a CRM that has not been logging engagement consistently, this can dump a large batch of labeled-cold alerts onto coordinators on day one, and 'flagged once' then never re-evaluates them if they are never engaged. Also, 'cold' is an edge-triggered notification, and the re-reminder is only through the digest every 30 days. A job failure or a skipped nightly run could silently miss the crossing, and there is no detection of job failure. The 'exactly one notification' criterion is untestable without idempotency and missed-run handling.",
-            "evaluation_of_proposer": "The Proposer offers no idempotency, missed-run catch-up, or monitoring for the nightly job, and the day-one handling of countries with no history is internally inconsistent with the 'no more than 25% flagged' criterion.",
+            "issue_id": "C2",
+            "target_assumption_id": "A4",
+            "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
+            "evaluation_of_proposer": "A4 treats permission inheritance as sufficient, but the success criterion covers only contacts and countries and misses derived text fields and the cross-entity joins.",
             "status": "CHALLENGED",
-            "confidence": 0.6
+            "confidence": 0.75
+          },
+          {
+            "issue_id": "C3",
+            "target_assumption_id": "A6",
+            "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
+            "evaluation_of_proposer": "The proposal explicitly removes approval and says nothing about audit or undo. The risk is acknowledged only through the badge, which does not cover wrongly excluded contacts.",
+            "status": "CHALLENGED",
+            "confidence": 0.7
+          },
+          {
+            "issue_id": "C4",
+            "target_assumption_id": "A3",
+            "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
+            "evaluation_of_proposer": "The proposer's rationale is only cost and simplicity. It does not address alert fatigue. The success criterion tests only that the threshold is implemented as coded, not that it is useful.",
+            "status": "CHALLENGED",
+            "confidence": 0.65
+          },
+          {
+            "issue_id": "C5",
+            "target_assumption_id": "A5",
+            "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
+            "evaluation_of_proposer": "The Proposer states the feature is advisory and encodes no protocol. This is reasonable, but the label alone does not address how the pick is used or whether ranking is permissible. This is likely beyond engineering to settle.",
+            "status": "CHALLENGED",
+            "confidence": 0.5
           }
         ],
         "ready_to_conclude": false,
@@ -139,16 +182,16 @@
       "ledger_snapshot": {
         "C1": {
           "issue_id": "C1",
-          "target_assumption_id": "A1",
-          "challenge_text": "A single global 90-day threshold treats Norway and a country with one biannual ministerial cycle identically. Countries with seasonal or low-frequency diplomatic rhythms (parliamentary recess, elections, summit-driven cadence) will be flagged cold every cycle while being perfectly healthy. Regional Coordinators will quickly learn these are noise and start ignoring the digest, so the one genuinely cold high-priority country gets lost in the same pile. The 25% day-one cap still allows ~25 flagged countries, which is already a fatigue-level volume for a coordinator portfolio of perhaps 10-15 countries. Whether 90 days is the right definition of cold is a policy question, but there must be a bounded engineering mitigation, such as a coordinator-visible reason or an exclusion for countries in an active mission.",
+          "target_assumption_id": "A2",
+          "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
-          "critic_confidence": 0.75,
+          "critic_confidence": 0.8,
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
+          "accepted_fingerprint": null,
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED"
@@ -156,25 +199,8 @@
         },
         "C2": {
           "issue_id": "C2",
-          "target_assumption_id": "A2",
-          "challenge_text": "The signal is last logged Engagement, but logging is voluntary and uneven. A coordinator who is in weekly phone contact with a ministry but has not logged it will trigger a false 'cold' alert, while a country where an intern bulk-logged a mass-email Engagement looks warm. Turnover compounds this: when a coordinator leaves or a country is reassigned, the backlog of unlogged contact makes the countries look cold exactly when handover is weakest. Also, 'any Engagement of any type' lets low-value records (automated or mass-distribution mailings, a logged circular) reset the clock, hiding a truly cold relationship. The 'complete enough' assumption is untested; the day-one back-test only measures how many are flagged, not whether those flags are true.",
-          "proposer_last_move": "CHALLENGED",
-          "current_state": "CHALLENGED",
-          "proposer_confidence": 0.8,
-          "critic_confidence": 0.7,
-          "rounds_contested": 1,
-          "last_proposer_round": 0,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED"
-          ]
-        },
-        "C3": {
-          "issue_id": "C3",
-          "target_assumption_id": "A3",
-          "challenge_text": "Assumes every country has a current, correct Regional Coordinator. With turnover across 100 countries, some countries will have no coordinator, a departed one (account deactivated), or a stale assignment. The alert then goes to nobody or to the wrong person, and the country silently stays cold with no fallback; the exact failure the feature exists to prevent. In the other direction, a former coordinator who still holds Country access could keep receiving emails with last-contact names for a country they no longer work on. The proposal has no handling for unassigned or inactive recipients.",
+          "target_assumption_id": "A4",
+          "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
@@ -182,7 +208,24 @@
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
+          "accepted_fingerprint": null,
+          "escalation_reason": null,
+          "history": [
+            "R1:Critic:CHALLENGED"
+          ]
+        },
+        "C3": {
+          "issue_id": "C3",
+          "target_assumption_id": "A6",
+          "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
+          "proposer_last_move": "CHALLENGED",
+          "current_state": "CHALLENGED",
+          "proposer_confidence": 0.8,
+          "critic_confidence": 0.7,
+          "rounds_contested": 1,
+          "last_proposer_round": 0,
+          "last_critic_challenge_round": 1,
+          "accepted_fingerprint": null,
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED"
@@ -191,15 +234,15 @@
         "C4": {
           "issue_id": "C4",
           "target_assumption_id": "A3",
-          "challenge_text": "The alert and the weekly email include the name of the last contact engaged. Email digests leave the CRM's access-controlled boundary: they sit in mailboxes, are forwarded, are synced to phones, and persist after a user's CRM access is revoked. 'Inherits Country/Mission access' only holds at render time in-app, not for an email sent at 06:00 that is read later. Contact names tied to a country and a 'relationship cold' label are diplomatically sensitive. Also, Engagements may be restricted by mission or classification, so if last_engagement_date or last contact is derived from a restricted Engagement, the alert can leak the existence and the contact of an engagement the recipient cannot see in the CRM. The nightly job computes across all engagements, so it is unclear whether it runs with the recipient's permissions.",
+          "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
-          "critic_confidence": 0.8,
+          "critic_confidence": 0.65,
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
+          "accepted_fingerprint": null,
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED"
@@ -207,23 +250,24 @@
         },
         "C5": {
           "issue_id": "C5",
-          "target_assumption_id": "A1",
-          "challenge_text": "The go-live behavior and the transition semantics are ill-defined. Countries with no Engagement history are flagged once at go-live; for a CRM that has not been logging engagement consistently, this can dump a large batch of labeled-cold alerts onto coordinators on day one, and 'flagged once' then never re-evaluates them if they are never engaged. Also, 'cold' is an edge-triggered notification, and the re-reminder is only through the digest every 30 days. A job failure or a skipped nightly run could silently miss the crossing, and there is no detection of job failure. The 'exactly one notification' criterion is untestable without idempotency and missed-run handling.",
+          "target_assumption_id": "A5",
+          "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
-          "critic_confidence": 0.6,
+          "critic_confidence": 0.5,
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
+          "accepted_fingerprint": null,
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED"
           ]
         }
       },
-      "disagreement_score": 0.88,
+      "rejected_references": [],
+      "disagreement_score": 0.87,
       "termination_reason": "ROUND_1_MINIMUM_LOCK",
       "should_stop": false
     },
@@ -232,467 +276,230 @@
       "proposer": {
         "proposed_scope_in": [
           {
-            "item": "Nightly job computes last_engagement_date per Country as the most recent existing Engagement linked to any Contact, Mission, or Project of that country. The job runs with system permissions and counts restricted Engagements toward 'warm', because they can only suppress an alert and never reveal anything. It is derived on the fly with no new entity or manual field.",
+            "item": "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "A country is cold when days since last_engagement_date exceed one global threshold (default 90 days, one system config value, no per-country settings) AND the country has no active Mission. Active-mission countries are suppressed. Countries with no Engagement history are treated as cold with a 'no recorded engagement' label and counted in the day-one cap.",
+            "item": "A one-line 'why' under each recommendation, built from existing fields and always showing the evidence it rests on: last-engaged date, the linked Project or Mission, and the contact record's existing system-maintained 'last updated' date (no new field, nothing entered by hand). A fixed caption states: 'Ranked by recent activity; does not confirm the person is currently in post.' The recommendation is labelled advisory.",
+            "assumption_ids": [
+              "A2",
+              "A5"
+            ]
+          },
+          {
+            "item": "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "Level-triggered state instead of edge-triggered: one auto-filled column, Country.last_alerted_at, written by the job. Each night a cold country with no alert in the last 30 days gets one in-app notification. Reruns are idempotent and a skipped night self-heals on the next run. Nothing is entered by coordinators.",
-            "assumption_ids": [
-              "A1",
-              "A4"
-            ]
-          },
-          {
-            "item": "In-app notification carries only the country link, the days-since count, and a reason line ('No logged engagement for N days; threshold 90; no active mission'). Last engagement date and last contact are not stored in the notification. They are rendered on the Country page at view time through the existing Country/Mission/Engagement permissions.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Weekly email digest to each recipient lists currently cold countries with country name, days-since band, and a link into the CRM. It contains no contact names, no engagement dates, and no engagement details.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Recipient resolution happens at send time. Recipients are the currently assigned Regional Coordinators whose accounts are active and who still hold Country access. If none qualify, the alert goes to existing Operations-role holders with access to that country, so the country never goes silently unalerted. Which role is the right fallback is an organisational decision for humans.",
+            "item": "A 'No engagement logged in 180 days' badge on any recommended contact with no logged Engagement in the last 180 days, shown next to the actual last-engaged date so users can judge it themselves. The threshold is a single global constant, not a per-country setting. Before release, one query on a production data snapshot measures the share of recommendations that would be badged, and the constant is adjusted globally if the badge fires on most recommendations.",
             "assumption_ids": [
               "A3"
             ]
           },
           {
-            "item": "Alert auto-clears within 24 hours of a new Engagement being logged for the country. No acknowledge, snooze, or dismiss action is required of the coordinator.",
+            "item": "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A 'No longer in post' action on the contact card sets that existing status after a confirmation dialog. Each status change records actor and timestamp (existing audit log if there is one, otherwise two auto-filled columns on Contact), and a 'Reinstate' action on the contact card restores the previous status. There is no approval workflow.",
+            "assumption_ids": [
+              "A6"
+            ]
+          },
+          {
+            "item": "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. The user's access filter is applied to the candidate set before ranking. The 'why' line (project names, mission names, engagement dates) and the backup contact are built only from records visible to the viewer. If a linked Project or Engagement is not visible, that element is omitted from the line. No new RBAC is added.",
+            "assumption_ids": [
+              "A4"
+            ]
+          },
+          {
+            "item": "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated.",
+            "assumption_ids": [
+              "A2",
+              "A1"
+            ]
+          }
+        ],
+        "proposed_scope_out": [
+          "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
+          "New tables or entities for routing rules, contact preferences or a topic taxonomy",
+          "Per-country or per-user configuration of staleness thresholds or ranking weights",
+          "Approval, review or verification workflows for contact changes",
+          "Alerts, notification queues, or dashboards of stale contacts or recent status changes across countries",
+          "ML or scoring models for contact ranking",
+          "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
+          "Automated verification of contact validity via email bounce, external directories or ministry feeds",
+          "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
+          "Bulk import or cleanup tooling for historical contact data",
+          "Ranking across role types or any single country-level 'best contact'. Each role type is recommended independently."
+        ],
+        "assumptions": [
+          {
+            "assumption_id": "A1",
+            "statement": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
+            "rationale": "Reusing existing role types avoids a new taxonomy and schema. It covers the most common 'who do I call' lookups without anyone maintaining a new list."
+          },
+          {
+            "assumption_id": "A2",
+            "statement": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
+            "rationale": "Deriving the answer from data already captured gives zero extra data-entry friction for busy Regional Coordinators, and needs no schema change."
+          },
+          {
+            "assumption_id": "A3",
+            "statement": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
+            "rationale": "One constant is cheap to build, test and explain. A per-country setting would need maintenance across ~100 countries and would rot."
+          },
+          {
+            "assumption_id": "A4",
+            "statement": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
+            "rationale": "Inheriting existing permissions avoids building a new access model. It bounds the risk of exposing contacts to users who should not see them."
+          },
+          {
+            "assumption_id": "A5",
+            "statement": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
+            "rationale": "Protocol and precedence are diplomatic policy, outside product design. Staying advisory keeps the rule simple and transparent and avoids inventing policy."
+          },
+          {
+            "assumption_id": "A6",
+            "statement": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
+            "rationale": "Using an existing field with a one-click action adds no schema and no new workflow. The staleness badge covers contacts nobody has flagged."
+          }
+        ],
+        "success_criteria": [
+          {
+            "criterion": "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
+            "assumption_ids": [
+              "A2"
+            ]
+          },
+          {
+            "criterion": "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "Nightly job failures are written to the existing platform job logging and alerting for engineering. No new screen or queue is added.",
+            "criterion": "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the badge, none with a more recent Engagement do, and every badge sits next to the actual last-engaged date. A pre-release query reports the badge rate on a real data snapshot, and the constant is reviewed before release if more than 50% of recommendations are badged.",
+            "assumption_ids": [
+              "A3"
+            ]
+          },
+          {
+            "criterion": "In permission tests with users who have restricted access, 0 hidden contacts, countries, project or mission names, engagement dates or backup contacts appear in the panel, the 'why' line or filtered search. The recommendation shown to a restricted user equals the one computed over only their visible records.",
             "assumption_ids": [
               "A4"
             ]
+          },
+          {
+            "criterion": "100% of recommendations display a 'why' line, the caption that it does not confirm the person is in post, and an advisory label. 0 inactive or departed contacts are recommended in the test dataset.",
+            "assumption_ids": [
+              "A5",
+              "A6"
+            ]
+          },
+          {
+            "criterion": "In tests, 100% of 'No longer in post' changes require confirmation and record actor and timestamp, and 'Reinstate' restores the prior status and returns the contact to the ranking.",
+            "assumption_ids": [
+              "A6"
+            ]
           }
-        ],
-        "proposed_scope_out": [
-          "Sentiment, relationship-health, or ML scoring of engagement quality",
-          "Per-country, per-region, or per-contact thresholds, seasonality calendars, exclusion lists, and any settings someone must maintain per country",
-          "Weighting or filtering Engagements by type, for example mass-mailing detection",
-          "Dashboards, 'cold countries' lists or queues, job-health screens, and cross-country ranking views",
-          "Snooze, acknowledge, dismiss, approval, or escalation workflows",
-          "Automatic ingestion of email, calendar, or phone activity to infer engagement",
-          "New entities or tables, and new required fields for Regional Coordinators",
-          "Alert delivery to channels outside the CRM other than the weekly digest (no SMS or chat), and to users outside existing access roles",
-          "Per-recipient recomputation of last-engagement values based on each recipient's Engagement visibility",
-          "Defining which countries are strategic priorities, what counts as 'cold' diplomatically, the email classification policy, and the fallback-recipient policy. These are decisions for humans, not product design."
-        ],
-        "assumptions": [
-          {
-            "assumption_id": "A1",
-            "statement": "'Cold' means no logged Engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days.",
-            "rationale": "A single time-since-last-engagement rule is a deterministic query over existing Engagement data. It needs no scoring model, no per-country configuration, and no new schema, so a small team can ship and explain it in one release."
-          },
-          {
-            "assumption_id": "A2",
-            "statement": "Engagement records already in the CRM are logged as part of normal work and are complete enough to act as the activity signal; Regional Coordinators will not be asked to enter anything extra.",
-            "rationale": "Deriving the alert from existing data honors the zero-data-entry constraint. Asking coordinators to log 'relationship status' fields would rot quickly and defeat the feature."
-          },
-          {
-            "assumption_id": "A3",
-            "statement": "Each country already has an assigned Regional Coordinator in the existing access model, and alerts go to that person and respect existing Country/Mission permissions.",
-            "rationale": "Reusing existing assignment and permissions avoids building a new RBAC or routing system and bounds who can see alert data to those who can already see the country."
-          },
-          {
-            "assumption_id": "A4",
-            "statement": "In-app notification plus a weekly email digest is sufficient timeliness; real-time alerting is not needed because relationships go cold over weeks, not hours.",
-            "rationale": "A nightly batch job and a weekly digest are cheap to build and test, and they avoid alert fatigue and event-streaming infrastructure."
-          }
-        ],
-        "success_criteria": [
-          "Every non-suppressed country over the 90-day threshold gets exactly one in-app notification per 30-day window. Verified by back-test and by rerunning the nightly job twice on the same day (idempotent, zero duplicates).",
-          "After a simulated skipped nightly run, the next run produces all missed notifications with no manual intervention.",
-          "Alerts auto-clear within 24 hours of a new Engagement being logged for that country.",
-          "Countries with an active Mission produce zero cold alerts.",
-          "Zero new fields or manual steps are required of Regional Coordinators. The only new schema is the auto-filled Country.last_alerted_at column.",
-          "Weekly digest emails contain zero contact names and zero engagement dates (automated test on rendered output).",
-          "Delivery test: 100% of cold countries resolve to at least one active recipient with Country access. Countries with no assigned active coordinator resolve to the fallback role.",
-          "Day-one back-test: no more than 25% of ~100 countries are flagged, including no-history countries. If the share is higher, the threshold is escalated to humans before release. Before release, coordinators also confirm a sample of 10 flagged countries as truly cold, and the result is recorded as a release gate.",
-          "Weekly digest is delivered to 100% of recipients who have at least one cold country."
         ],
         "challenge_responses": [
           {
             "issue_id": "C1",
             "move": "REVISED",
-            "response": "The Critic is right that active-mission countries should not be flagged. The fix is cheap, a rule over the existing Mission entity, so I am adopting it: the cold flag is suppressed while the country has an active Mission, and the notification carries a plain reason line (days since last engagement, threshold in force). I am DEFENDING the single global threshold. Per-country thresholds or seasonality calendars are a setting someone must maintain per country, which is expensive. The residual false positives are bounded: the global value is one config and the day-one back-test is capped at 25%. Whether 90 days is the right definition of cold is diplomatic policy and is routed to humans. Evidence that would justify per-country cadence later: coordinators reporting repeated false cold flags for the same countries after launch.",
-            "confidence": 0.7
+            "response": "The Critic is right that engagement recency measures relationship activity, not whether someone holds the post. A confirmed-in-post field would be a new data-entry burden for coordinators, so v1 takes the cheap fix: the 'why' line shows its evidence (last-engaged date, and the contact record's existing system-maintained last-updated date), plus a fixed caption that the ranking does not confirm the person is in post. This adds no table and no manual input, and the user sees how fresh the data is. A contact record's last-updated date moves on any edit, so it is only a rough proxy for confirmation. The 'farewell meeting' case remains a residual risk, bounded by the displayed dates, the caption and the 'No longer in post' action. If the pilot shows wrong-person recommendations after reshuffles, a later release can add a confirmed-in-post date. A2 itself remains unchanged and is not yet validated. The pre-release data snapshot (see C4) will show how often the top pick has stale records.",
+            "confidence": 0.72
           },
           {
             "issue_id": "C2",
+            "move": "REVISED",
+            "response": "The risk is real, and the fix is cheap: it is a constraint on the query and the tests. The access filter is applied to the candidate set before ranking, so the ranking and the backup are computed only over what the viewer may see and cannot reveal a hidden contact. The 'why' line is built only from visible Project, Mission and Engagement records, and any element the viewer cannot see is omitted. The permission test now covers 'why' text, project and mission names, engagement dates and backup contacts. This is a query rule on existing data. It adds no new RBAC and no new tables. Which records are restricted and how is existing access-control and classification policy. I am not redefining that policy, only inheriting it consistently.",
+            "confidence": 0.82
+          },
+          {
+            "issue_id": "C3",
+            "move": "REVISED",
+            "response": "A mistaken one-click exclusion can silently drop the right contact, and the fix is cheap: a confirmation dialog, actor and timestamp on each status change (existing audit log if present, otherwise two auto-filled columns on Contact), and a 'Reinstate' action that restores the prior status on the existing field. None of this is an approval workflow, queue or dashboard. I am DEFENDING the other half of the critique, that nothing makes staff notice departures. A mechanism to push staff to flag departures would require alerts, queues or dashboards, which are expensive and deliberately out of scope. Residual risk is bounded by the visible last-engaged and last-updated dates, the badge, the caption and the audit trail. If the pilot shows departures going unflagged for long periods, a later release can add review prompts. Who may change a contact's status is access policy and belongs to the existing permissions model, not to this design.",
+            "confidence": 0.75
+          },
+          {
+            "issue_id": "C4",
+            "move": "REVISED",
+            "response": "Both cheap parts of the fix are adopted: the actual last-engaged date is shown next to the badge, and the badge wording is changed to 'No engagement logged in 180 days', which states a fact rather than a verdict. Before release, one read-only query on a production snapshot measures the share of recommendations that would be badged, and the single global constant is adjusted if the badge would fire on most recommendations. That is a pre-release check and does not add a setting, a dashboard or a per-country threshold. The Critic's point that the badge cannot catch a recent departure with fresh engagement is accepted. The badge is not a departure detector, and the caption and 'No longer in post' action address that case. Per-country thresholds stay out of scope. The pre-release query will show whether that is justified later.",
+            "confidence": 0.75
+          },
+          {
+            "issue_id": "C5",
             "move": "DEFENDED",
-            "response": "Logging gaps are real, but the fix options are expensive. Weighting or filtering by Engagement type means a maintained type list, and validating completeness means a review step. Both break the zero-data-entry constraint. Residual risk is bounded in four ways: (1) a false cold alert costs one click to inspect and clears itself the moment the coordinator logs the contact, which is the behaviour we want; (2) the alert shows days-since and links to Country history, so a mass mailing is visible to the coordinator; (3) at handover the alert acts as a prompt to the new coordinator, not a failure; (4) I am adding a release gate where coordinators confirm a sample of 10 flagged countries is truly cold, so accuracy is measured before launch and not just volume. The back-test criterion in the first round measured only volume, and the gate now covers that gap. Evidence that would justify type filtering later: post-launch coordinator feedback showing mass or automated Engagements masking cold countries.",
-            "confidence": 0.65
-          },
-          {
-            "issue_id": "C3",
-            "move": "REVISED",
-            "response": "Adopting a cheap, deterministic fix: recipients are resolved at send time from existing data, as the assigned coordinator who is active and still holds Country access. If no one qualifies, the alert routes to existing Operations-role holders with access to that country. This closes both the silent-nobody case and the departed-coordinator-still-gets-emails case with no new table, screen, or settings. The success criteria now test that 100% of cold countries resolve to at least one active recipient. Which role is the right fallback is an organisational and access-authority decision. I am flagging it for a human to confirm and have not invented a policy.",
-            "confidence": 0.75
-          },
-          {
-            "issue_id": "C4",
-            "move": "REVISED",
-            "response": "Taking the cheap fix: the weekly email contains no contact names and no engagement dates, only country name, a days-since band, and a link into the CRM. In-app notifications store no engagement details. Last engagement date and contact render at view time through the existing permissions, which removes the email leakage and closes the render-time versus read-time gap. Restricted Engagements count toward 'warm' for the system-run job, so they can only suppress an alert and cannot leak the existence or contact of a restricted engagement. I am DEFENDING against per-recipient recomputation because it is expensive and unnecessary once no engagement details leave the CRM. The only remaining email content is the country name plus a 'cold' label. Whether that label is acceptable in email is a data-classification decision for humans, and I have not set that policy. If humans disallow it, the digest becomes link-only with no country names.",
-            "confidence": 0.75
-          },
-          {
-            "issue_id": "C5",
-            "move": "REVISED",
-            "response": "Moving from edge-triggered to level-triggered with one auto-filled column, Country.last_alerted_at on Country. Each night, a cold country with no alert in the last 30 days gets an alert. This makes the job idempotent, lets a skipped run self-heal on the next night, and ensures no-history countries are re-evaluated every 30 days and not flagged only once. No-history countries now count inside the 25% day-one cap, so the earlier inconsistency is resolved. Job failures go to existing platform logging and alerting, with no new screen. Success criteria now include a double-run test and a skipped-run recovery test. A larger monitoring system is out of scope.",
-            "confidence": 0.75
+            "response": "The panel does not rank across role types. It recommends one contact per role type independently, so a project lead can never be promoted above the ministry contact. Both appear under their own role label in a fixed order. Within a role type the choice is made by the deterministic rule and shown with its 'why' line, a fixed advisory caption and a backup. These bound the risk that a coordinator reads the pick as the correct channel for every matter. A further interface change would be a cost with no demonstrated benefit. Whether the product may rank by role at all, or must list all active role holders without a 'recommended' designation, is an institutional policy question that I cannot answer, so it is routed to a human policy owner. If the policy owner rules against ranking, the fallback is a display-only change that lists all active holders by role, with no schema change. Evidence that would justify more interface change later: coordinator feedback or incident reports showing the pick being used as a protocol decision.",
+            "confidence": 0.6
           }
         ],
-        "overall_confidence": 0.7
+        "overall_confidence": 0.74
       },
       "critic": {
         "challenges": [
           {
             "issue_id": "C1",
-            "target_assumption_id": "A1",
-            "challenge_text": "Single global 90-day threshold flags countries with seasonal or low-frequency rhythms and creates alert fatigue for coordinators.",
-            "evaluation_of_proposer": "The Proposer adopted the bounded mitigations I asked for: suppression while a country has an active Mission, a plain reason line showing days-since and threshold, and a day-one 25% cap with a coordinator sample check. The remaining per-country false positives are an acceptable MVP risk. Whether 90 days defines cold is flagged as a human policy decision, and post-launch feedback is named as the trigger for revisiting it.",
-            "status": "ACCEPTED",
-            "confidence": 0.3
-          },
-          {
-            "issue_id": "C2",
             "target_assumption_id": "A2",
-            "challenge_text": "Unlogged contact makes countries look falsely cold. Low-value or mass-distribution Engagements reset the clock and hide a genuinely cold relationship, for example an intern bulk-logging a circular for a country with no real contact for six months.",
-            "evaluation_of_proposer": "The defense covers false positives well. A false cold alert is cheap to check, clears itself when the contact is logged, and acts as a handover prompt. The new release gate samples 10 flagged countries. It does not address false negatives. A mass mailing that resets the clock produces no alert, so no coordinator ever looks at the country history the Proposer relies on. The gate only measures precision on flagged countries and says nothing about cold countries that were missed. A cheap fix exists with no new data entry: extend the release gate to also have coordinators review a sample of about 10 unflagged countries whose most recent Engagement is a bulk or multi-recipient record, and record the result. The Proposer should state what happens if that sample shows masking, for example the threshold or type filtering goes back to humans before release.",
-            "status": "CHALLENGED",
+            "challenge_text": "After a ministerial reshuffle, the outgoing contact still has the freshest logged engagement and is still marked active, so the panel recommends the wrong person.",
+            "evaluation_of_proposer": "The Proposer now shows the evidence behind each pick (last-engaged date, system last-updated date) and a fixed caption that the ranking does not confirm the person is in post. It also keeps the 'No longer in post' action and states the residual farewell-meeting risk openly. A confirmed-in-post field would be a new data-entry burden, and the displayed evidence is a reasonable MVP bound. Acceptable for an MVP.",
+            "status": "ACCEPTED",
             "confidence": 0.5
           },
           {
-            "issue_id": "C3",
-            "target_assumption_id": "A3",
-            "challenge_text": "Unassigned, departed, or stale coordinator assignments send the alert to nobody or to a former coordinator, so the country stays cold with no one aware.",
-            "evaluation_of_proposer": "Recipients are now resolved at send time and restricted to active accounts that still hold Country access. A fallback to Operations-role holders with access covers the nobody case. A criterion tests that 100% of cold countries resolve to at least one recipient. No new table or screen is needed. Choosing the fallback role is flagged for human confirmation, and that is acceptable for an MVP.",
+            "issue_id": "C2",
+            "target_assumption_id": "A4",
+            "challenge_text": "The 'why' line and the backup contact could leak restricted mission, project, engagement or contact metadata to a user who lacks access to it.",
+            "evaluation_of_proposer": "The access filter is now applied before ranking, so the pick and the backup are computed only over visible records. The 'why' line omits any element the viewer cannot see. The permission test now covers 'why' text, project and mission names, engagement dates and backup contacts, and requires the restricted user's result to equal the one computed over visible records only. This closes the gap. The classification policy itself is inherited from existing access control.",
             "status": "ACCEPTED",
-            "confidence": 0.3
+            "confidence": 0.4
+          },
+          {
+            "issue_id": "C3",
+            "target_assumption_id": "A6",
+            "challenge_text": "A single click on 'No longer in post' can wrongly drop the correct ministry contact. Conversely, nothing makes staff notice real departures.",
+            "evaluation_of_proposer": "The minimum fix I asked for is adopted: a confirmation dialog, actor and timestamp on each change, and a Reinstate action that restores the prior status. That removes the mistaken-click and trust risk. The Proposer defended against building a mechanism that pushes staff to flag departures, since that would need alerts or queues. For an MVP that is acceptable, and the residual risk is bounded by visible dates, the caption and the audit trail. Who may change a status belongs to the existing permissions policy.",
+            "status": "ACCEPTED",
+            "confidence": 0.45
           },
           {
             "issue_id": "C4",
             "target_assumption_id": "A3",
-            "challenge_text": "Email digests leave the access-controlled boundary. Restricted Engagements could leak their existence or date to recipients who cannot see them.",
-            "evaluation_of_proposer": "Most of the engineering risk is closed. The email carries only country name, a days-since band, and a link. Contact names and engagement dates are removed, and a test on rendered output is added. Two points remain that engineers cannot settle. First, whether a country name with a 'cold' label may appear in email is a data-classification decision. Second, the system job counts restricted Engagements toward the clock, so a days-since count can implicitly reflect the recency of an Engagement the recipient cannot see. Whether that is acceptable depends on classification and clearance authority. The Proposer has already stated the link-only fallback if humans disallow the label.",
-            "status": "ESCALATED_TO_HUMAN",
-            "confidence": 0.5
+            "challenge_text": "A single global 180-day badge fires constantly in low-tempo countries and misses recent departures, so it becomes ignored noise.",
+            "evaluation_of_proposer": "The Proposer adopted both cheap fixes. The badge text is now a neutral fact ('No engagement logged in 180 days') shown next to the actual last-engaged date. A pre-release query on a production snapshot measures the badge rate, and the global constant is adjusted if the badge fires on most recommendations. The Proposer also concedes that the badge is not a departure detector. The remaining alert-fatigue risk is bounded for an MVP.",
+            "status": "ACCEPTED",
+            "confidence": 0.4
           },
           {
             "issue_id": "C5",
-            "target_assumption_id": "A1",
-            "challenge_text": "Go-live flood from no-history countries, edge-triggered misses after a skipped run, and no detection of job failure.",
-            "evaluation_of_proposer": "The move to level-triggered with a single auto-filled last_alerted_at column makes the job idempotent and self-healing after a skipped run. No-history countries are re-evaluated every 30 days and counted in the 25% day-one cap. Job failures go to existing platform alerting. Double-run and skipped-run tests are added. This is sufficient for an MVP.",
-            "status": "ACCEPTED",
-            "confidence": 0.3
-          }
-        ],
-        "ready_to_conclude": false,
-        "overall_confidence": 0.5
-      },
-      "ledger_snapshot": {
-        "C1": {
-          "issue_id": "C1",
-          "target_assumption_id": "A1",
-          "challenge_text": "A single global 90-day threshold treats Norway and a country with one biannual ministerial cycle identically. Countries with seasonal or low-frequency diplomatic rhythms (parliamentary recess, elections, summit-driven cadence) will be flagged cold every cycle while being perfectly healthy. Regional Coordinators will quickly learn these are noise and start ignoring the digest, so the one genuinely cold high-priority country gets lost in the same pile. The 25% day-one cap still allows ~25 flagged countries, which is already a fatigue-level volume for a coordinator portfolio of perhaps 10-15 countries. Whether 90 days is the right definition of cold is a policy question, but there must be a bounded engineering mitigation, such as a coordinator-visible reason or an exclusion for countries in an active mission.",
-          "proposer_last_move": "REVISED",
-          "current_state": "ACCEPTED",
-          "proposer_confidence": 0.7,
-          "critic_confidence": 0.3,
-          "rounds_contested": 1,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "'cold' means no logged engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days",
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:REVISED",
-            "R2:Critic:ACCEPTED"
-          ]
-        },
-        "C2": {
-          "issue_id": "C2",
-          "target_assumption_id": "A2",
-          "challenge_text": "The signal is last logged Engagement, but logging is voluntary and uneven. A coordinator who is in weekly phone contact with a ministry but has not logged it will trigger a false 'cold' alert, while a country where an intern bulk-logged a mass-email Engagement looks warm. Turnover compounds this: when a coordinator leaves or a country is reassigned, the backlog of unlogged contact makes the countries look cold exactly when handover is weakest. Also, 'any Engagement of any type' lets low-value records (automated or mass-distribution mailings, a logged circular) reset the clock, hiding a truly cold relationship. The 'complete enough' assumption is untested; the day-one back-test only measures how many are flagged, not whether those flags are true.",
-          "proposer_last_move": "DEFENDED",
-          "current_state": "DEFENDED",
-          "proposer_confidence": 0.65,
-          "critic_confidence": 0.5,
-          "rounds_contested": 2,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 2,
-          "accepted_assumption_text": null,
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:DEFENDED",
-            "R2:Critic:DEFENDED"
-          ]
-        },
-        "C3": {
-          "issue_id": "C3",
-          "target_assumption_id": "A3",
-          "challenge_text": "Assumes every country has a current, correct Regional Coordinator. With turnover across 100 countries, some countries will have no coordinator, a departed one (account deactivated), or a stale assignment. The alert then goes to nobody or to the wrong person, and the country silently stays cold with no fallback; the exact failure the feature exists to prevent. In the other direction, a former coordinator who still holds Country access could keep receiving emails with last-contact names for a country they no longer work on. The proposal has no handling for unassigned or inactive recipients.",
-          "proposer_last_move": "REVISED",
-          "current_state": "ACCEPTED",
-          "proposer_confidence": 0.75,
-          "critic_confidence": 0.3,
-          "rounds_contested": 1,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "each country already has an assigned regional coordinator in the existing access model, and alerts go to that person and respect existing country/mission permissions",
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:REVISED",
-            "R2:Critic:ACCEPTED"
-          ]
-        },
-        "C4": {
-          "issue_id": "C4",
-          "target_assumption_id": "A3",
-          "challenge_text": "The alert and the weekly email include the name of the last contact engaged. Email digests leave the CRM's access-controlled boundary: they sit in mailboxes, are forwarded, are synced to phones, and persist after a user's CRM access is revoked. 'Inherits Country/Mission access' only holds at render time in-app, not for an email sent at 06:00 that is read later. Contact names tied to a country and a 'relationship cold' label are diplomatically sensitive. Also, Engagements may be restricted by mission or classification, so if last_engagement_date or last contact is derived from a restricted Engagement, the alert can leak the existence and the contact of an engagement the recipient cannot see in the CRM. The nightly job computes across all engagements, so it is unclear whether it runs with the recipient's permissions.",
-          "proposer_last_move": "REVISED",
-          "current_state": "ESCALATED_TO_HUMAN",
-          "proposer_confidence": 0.75,
-          "critic_confidence": 0.5,
-          "rounds_contested": 1,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
-          "escalation_reason": "POLICY_ESCALATED_BY_CRITIC",
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:REVISED",
-            "R2:Critic:ESCALATED_TO_HUMAN"
-          ]
-        },
-        "C5": {
-          "issue_id": "C5",
-          "target_assumption_id": "A1",
-          "challenge_text": "The go-live behavior and the transition semantics are ill-defined. Countries with no Engagement history are flagged once at go-live; for a CRM that has not been logging engagement consistently, this can dump a large batch of labeled-cold alerts onto coordinators on day one, and 'flagged once' then never re-evaluates them if they are never engaged. Also, 'cold' is an edge-triggered notification, and the re-reminder is only through the digest every 30 days. A job failure or a skipped nightly run could silently miss the crossing, and there is no detection of job failure. The 'exactly one notification' criterion is untestable without idempotency and missed-run handling.",
-          "proposer_last_move": "REVISED",
-          "current_state": "ACCEPTED",
-          "proposer_confidence": 0.75,
-          "critic_confidence": 0.3,
-          "rounds_contested": 1,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "'cold' means no logged engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days",
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:REVISED",
-            "R2:Critic:ACCEPTED"
-          ]
-        }
-      },
-      "disagreement_score": 0.1181,
-      "termination_reason": "CONTINUE",
-      "should_stop": false
-    },
-    {
-      "round": 3,
-      "proposer": {
-        "proposed_scope_in": [
-          {
-            "item": "Nightly job computes last_engagement_date per Country as the most recent existing Engagement linked to any Contact, Mission, or Project of that country. The job runs with system permissions and counts restricted Engagements toward 'warm', because they can only suppress an alert and never reveal anything. It is derived on the fly with no new entity or manual field.",
-            "assumption_ids": [
-              "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "A country is cold when days since last_engagement_date exceed one global threshold (default 90 days, one system config value, no per-country settings) AND the country has no active Mission. Active-mission countries are suppressed. Countries with no Engagement history are treated as cold with a 'no recorded engagement' label and counted in the day-one cap.",
-            "assumption_ids": [
-              "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "Level-triggered state instead of edge-triggered: one auto-filled column, Country.last_alerted_at, written by the job. Each night a cold country with no alert in the last 30 days gets one in-app notification. Reruns are idempotent and a skipped night self-heals on the next run. Nothing is entered by coordinators.",
-            "assumption_ids": [
-              "A1",
-              "A4"
-            ]
-          },
-          {
-            "item": "In-app notification carries only the country link, the days-since count, and a reason line ('No logged engagement for N days; threshold 90; no active mission'). Last engagement date and last contact are not stored in the notification. They are rendered on the Country page at view time through the existing Country/Mission/Engagement permissions.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Weekly email digest to each recipient lists currently cold countries with country name, days-since band, and a link into the CRM. It contains no contact names, no engagement dates, and no engagement details.",
-            "assumption_ids": [
-              "A3",
-              "A4"
-            ]
-          },
-          {
-            "item": "Recipient resolution happens at send time. Recipients are the currently assigned Regional Coordinators whose accounts are active and who still hold Country access. If none qualify, the alert goes to existing Operations-role holders with access to that country, so the country never goes silently unalerted. Which role is the right fallback is an organisational decision for humans.",
-            "assumption_ids": [
-              "A3"
-            ]
-          },
-          {
-            "item": "Alert auto-clears within 24 hours of a new Engagement being logged for the country. No acknowledge, snooze, or dismiss action is required of the coordinator.",
-            "assumption_ids": [
-              "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "Nightly job failures are written to the existing platform job logging and alerting for engineering. No new screen or queue is added.",
-            "assumption_ids": [
-              "A4"
-            ]
-          },
-          {
-            "item": "One-off pre-release release gate, not a product feature: a single query over existing Engagement data lists unflagged countries whose most recent Engagement is a bulk or multi-recipient record. Coordinators review a sample of about 10 of them and the result is recorded. No new screen, table, field, or ongoing review step is added.",
-            "assumption_ids": [
-              "A2"
-            ]
-          }
-        ],
-        "proposed_scope_out": [
-          "Sentiment, relationship-health, or ML scoring of engagement quality",
-          "Per-country, per-region, or per-contact thresholds, seasonality calendars, exclusion lists, and any settings someone must maintain per country",
-          "Weighting or filtering Engagements by type in the running product, for example mass-mailing detection. This is revisited only if the release-gate or post-launch evidence shows masking.",
-          "Dashboards, 'cold countries' lists or queues, job-health screens, and cross-country ranking views",
-          "Snooze, acknowledge, dismiss, approval, or escalation workflows",
-          "Automatic ingestion of email, calendar, or phone activity to infer engagement",
-          "New entities or tables, and new required fields for Regional Coordinators",
-          "Alert delivery to channels outside the CRM other than the weekly digest (no SMS or chat), and to users outside existing access roles",
-          "Per-recipient recomputation of last-engagement values based on each recipient's Engagement visibility",
-          "Defining which countries are strategic priorities, what counts as 'cold' diplomatically, the email classification policy, and the fallback-recipient policy. These are decisions for humans, not product design."
-        ],
-        "assumptions": [
-          {
-            "assumption_id": "A1",
-            "statement": "'Cold' means no logged Engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days.",
-            "rationale": "A single time-since-last-engagement rule is a deterministic query over existing Engagement data. It needs no scoring model, no per-country configuration, and no new schema, so a small team can ship and explain it in one release."
-          },
-          {
-            "assumption_id": "A2",
-            "statement": "Engagement records already in the CRM are logged as part of normal work and are complete enough to act as the activity signal; Regional Coordinators will not be asked to enter anything extra.",
-            "rationale": "Deriving the alert from existing data honors the zero-data-entry constraint. Asking coordinators to log 'relationship status' fields would rot quickly and defeat the feature."
-          },
-          {
-            "assumption_id": "A3",
-            "statement": "Each country already has an assigned Regional Coordinator in the existing access model, and alerts go to that person and respect existing Country/Mission permissions.",
-            "rationale": "Reusing existing assignment and permissions avoids building a new RBAC or routing system and bounds who can see alert data to those who can already see the country."
-          },
-          {
-            "assumption_id": "A4",
-            "statement": "In-app notification plus a weekly email digest is sufficient timeliness; real-time alerting is not needed because relationships go cold over weeks, not hours.",
-            "rationale": "A nightly batch job and a weekly digest are cheap to build and test, and they avoid alert fatigue and event-streaming infrastructure."
-          }
-        ],
-        "success_criteria": [
-          "Every non-suppressed country over the 90-day threshold gets exactly one in-app notification per 30-day window. Verified by back-test and by rerunning the nightly job twice on the same day (idempotent, zero duplicates).",
-          "After a simulated skipped nightly run, the next run produces all missed notifications with no manual intervention.",
-          "Alerts auto-clear within 24 hours of a new Engagement being logged for that country.",
-          "Countries with an active Mission produce zero cold alerts.",
-          "Zero new fields or manual steps are required of Regional Coordinators. The only new schema is the auto-filled Country.last_alerted_at column.",
-          "Weekly digest emails contain zero contact names and zero engagement dates (automated test on rendered output).",
-          "Delivery test: 100% of cold countries resolve to at least one active recipient with Country access. Countries with no assigned active coordinator resolve to the fallback role.",
-          "Day-one back-test: no more than 25% of ~100 countries are flagged, including no-history countries. If the share is higher, the threshold is escalated to humans before release.",
-          "Release gate, precision: coordinators confirm a sample of 10 flagged countries as truly cold, and the result is recorded.",
-          "Release gate, false negatives: coordinators review a sample of about 10 unflagged countries whose most recent Engagement is a bulk or multi-recipient record, and the result is recorded. If 3 or more of the 10 are judged genuinely cold (the 3-of-10 cutoff is a proposed default for humans to confirm), release is held and the threshold and Engagement-type question goes back to humans before launch.",
-          "Weekly digest is delivered to 100% of recipients who have at least one cold country."
-        ],
-        "challenge_responses": [
-          {
-            "issue_id": "C2",
-            "move": "REVISED",
-            "response": "The Critic's new point stands: the Round 2 gate measured only precision on flagged countries. A bulk mailing that resets the clock produces no alert, so nobody would ever look at that country's history. The fix is cheap. It is a one-off query over existing Engagement data plus a sample review of about 10 unflagged countries, recorded as a release gate. It adds no screen, table, field, or ongoing review step, and it asks nothing new of coordinators beyond a one-time check, so I am adopting it. I also state the consequence the Critic asked for. If 3 or more of the 10 are genuinely cold, release is held and the threshold and Engagement-type question goes back to humans before launch. The 3-of-10 cutoff is a proposed default for humans to confirm. I am still DEFENDING against in-product type filtering or bulk-mail weighting. That needs a maintained type list and a definition of 'low-value', which is expensive and partly a policy call. The gate measures how large the masking risk actually is, and post-launch coordinator feedback showing masked cold countries would justify adding filtering in a later release.",
-            "confidence": 0.7
-          }
-        ],
-        "overall_confidence": 0.72
-      },
-      "critic": {
-        "challenges": [
-          {
-            "issue_id": "C1",
-            "target_assumption_id": "A1",
-            "challenge_text": "Single global 90-day threshold could flag countries with seasonal or low-frequency rhythms and cause alert fatigue. Previously accepted with mitigations: suppression for active-mission countries, a reason line on each alert, and the 25% day-one cap.",
-            "evaluation_of_proposer": "Already accepted. The A1 text is unchanged, so there is no reopen. Status is carried forward.",
-            "status": "ACCEPTED",
-            "confidence": 0.25
-          },
-          {
-            "issue_id": "C2",
-            "target_assumption_id": "A2",
-            "challenge_text": "Logging is uneven. Unlogged phone contact can cause a false cold alert. A bulk or mass-mailing Engagement can reset the clock, so a genuinely cold country produces no alert and nobody ever reviews its history. The gap left open in Round 2 was that the gate measured only precision on flagged countries.",
-            "evaluation_of_proposer": "The Proposer adopted a one-off false-negative release gate: a query over existing Engagement data for unflagged countries whose latest Engagement is bulk or multi-recipient, plus a recorded review of about 10 of them. It also attached a consequence. If 3 or more of the 10 are genuinely cold, release is held and the threshold and Engagement-type question goes to humans. It adds no new schema, no screen and no coordinator burden. Rejecting in-product type filtering is reasonable for an MVP, because it needs a maintained type list and a 'low-value' definition that is partly a policy call. The 3-of-10 cutoff is explicitly flagged for human confirmation. A sample of 10 is small, but it is enough to detect gross masking before launch. The residual risk of unlogged contact is bounded by the precision gate and the reason line in the alert. Acceptable for an MVP.",
-            "status": "ACCEPTED",
-            "confidence": 0.3
-          },
-          {
-            "issue_id": "C3",
-            "target_assumption_id": "A3",
-            "challenge_text": "Countries with no coordinator, or with a departed or stale one, could leave the alert going to nobody or to the wrong person. Previously accepted: recipients are resolved at send time, restricted to active accounts that still hold Country access, with an Operations-role fallback.",
-            "evaluation_of_proposer": "Already accepted. The A3 text is unchanged, so there is no reopen. Status is carried forward.",
-            "status": "ACCEPTED",
-            "confidence": 0.2
-          },
-          {
-            "issue_id": "C4",
-            "target_assumption_id": "A3",
-            "challenge_text": "Email digests leave the CRM's access boundary. Restricted Engagements could leak the existence of an engagement through the alert. Whether restricted Engagements may count toward 'warm', and what the digest may contain, depends on classification and data-sharing policy.",
-            "evaluation_of_proposer": "Already escalated to humans. This turns on classification and policy authority, not engineering. The Proposer's mitigations (no contact names or dates in notifications or the digest, and only a suppression effect from restricted Engagements) are noted. Status is carried forward.",
+            "target_assumption_id": "A5",
+            "challenge_text": "Coordinators will treat the single recommended contact as the correct channel for every matter, even where protocol requires a specific channel such as the foreign ministry.",
+            "evaluation_of_proposer": "The Proposer's structural mitigations are sound: one pick per role type with no cross-role ranking, an advisory label, a caption and a 'why' line. The remaining question is whether the product may designate a 'recommended' contact at all, or must list all active role holders. That depends on institutional diplomatic policy, which engineering cannot settle. The Proposer has also named a display-only fallback with no schema change if the policy owner rules against ranking. Routing this to a human policy owner is correct.",
             "status": "ESCALATED_TO_HUMAN",
-            "confidence": 0.5
-          },
-          {
-            "issue_id": "C5",
-            "target_assumption_id": "A1",
-            "challenge_text": "Go-live behavior for no-history countries, edge-triggered misses on skipped runs, and the lack of job-failure detection. Previously accepted: level-triggered design, an idempotent last_alerted_at column, self-healing reruns, job failures routed to existing platform alerting, and a day-one cap.",
-            "evaluation_of_proposer": "Already accepted. The A1 text is unchanged, so there is no reopen. Status is carried forward.",
-            "status": "ACCEPTED",
-            "confidence": 0.2
+            "confidence": 0.55
           }
         ],
         "ready_to_conclude": true,
-        "overall_confidence": 0.3
+        "overall_confidence": 0.45
       },
       "ledger_snapshot": {
         "C1": {
           "issue_id": "C1",
-          "target_assumption_id": "A1",
-          "challenge_text": "A single global 90-day threshold treats Norway and a country with one biannual ministerial cycle identically. Countries with seasonal or low-frequency diplomatic rhythms (parliamentary recess, elections, summit-driven cadence) will be flagged cold every cycle while being perfectly healthy. Regional Coordinators will quickly learn these are noise and start ignoring the digest, so the one genuinely cold high-priority country gets lost in the same pile. The 25% day-one cap still allows ~25 flagged countries, which is already a fatigue-level volume for a coordinator portfolio of perhaps 10-15 countries. Whether 90 days is the right definition of cold is a policy question, but there must be a bounded engineering mitigation, such as a coordinator-visible reason or an exclusion for countries in an active mission.",
+          "target_assumption_id": "A2",
+          "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
-          "proposer_confidence": 0.7,
-          "critic_confidence": 0.3,
+          "proposer_confidence": 0.72,
+          "critic_confidence": 0.5,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "'cold' means no logged engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days",
+          "accepted_fingerprint": "827bfb3475a154a1",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -702,37 +509,35 @@
         },
         "C2": {
           "issue_id": "C2",
-          "target_assumption_id": "A2",
-          "challenge_text": "The signal is last logged Engagement, but logging is voluntary and uneven. A coordinator who is in weekly phone contact with a ministry but has not logged it will trigger a false 'cold' alert, while a country where an intern bulk-logged a mass-email Engagement looks warm. Turnover compounds this: when a coordinator leaves or a country is reassigned, the backlog of unlogged contact makes the countries look cold exactly when handover is weakest. Also, 'any Engagement of any type' lets low-value records (automated or mass-distribution mailings, a logged circular) reset the clock, hiding a truly cold relationship. The 'complete enough' assumption is untested; the day-one back-test only measures how many are flagged, not whether those flags are true.",
+          "target_assumption_id": "A4",
+          "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
-          "proposer_confidence": 0.7,
-          "critic_confidence": 0.3,
-          "rounds_contested": 2,
-          "last_proposer_round": 3,
-          "last_critic_challenge_round": 2,
-          "accepted_assumption_text": "engagement records already in the crm are logged as part of normal work and are complete enough to act as the activity signal; regional coordinators will not be asked to enter anything extra",
+          "proposer_confidence": 0.82,
+          "critic_confidence": 0.4,
+          "rounds_contested": 1,
+          "last_proposer_round": 2,
+          "last_critic_challenge_round": 1,
+          "accepted_fingerprint": "2356aa114d04b5e3",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
-            "R2:Proposer:DEFENDED",
-            "R2:Critic:DEFENDED",
-            "R3:Proposer:REVISED",
-            "R3:Critic:ACCEPTED"
+            "R2:Proposer:REVISED",
+            "R2:Critic:ACCEPTED"
           ]
         },
         "C3": {
           "issue_id": "C3",
-          "target_assumption_id": "A3",
-          "challenge_text": "Assumes every country has a current, correct Regional Coordinator. With turnover across 100 countries, some countries will have no coordinator, a departed one (account deactivated), or a stale assignment. The alert then goes to nobody or to the wrong person, and the country silently stays cold with no fallback; the exact failure the feature exists to prevent. In the other direction, a former coordinator who still holds Country access could keep receiving emails with last-contact names for a country they no longer work on. The proposal has no handling for unassigned or inactive recipients.",
+          "target_assumption_id": "A6",
+          "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
           "proposer_confidence": 0.75,
-          "critic_confidence": 0.3,
+          "critic_confidence": 0.45,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "each country already has an assigned regional coordinator in the existing access model, and alerts go to that person and respect existing country/mission permissions",
+          "accepted_fingerprint": "9940ab0406c96482",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -743,143 +548,149 @@
         "C4": {
           "issue_id": "C4",
           "target_assumption_id": "A3",
-          "challenge_text": "The alert and the weekly email include the name of the last contact engaged. Email digests leave the CRM's access-controlled boundary: they sit in mailboxes, are forwarded, are synced to phones, and persist after a user's CRM access is revoked. 'Inherits Country/Mission access' only holds at render time in-app, not for an email sent at 06:00 that is read later. Contact names tied to a country and a 'relationship cold' label are diplomatically sensitive. Also, Engagements may be restricted by mission or classification, so if last_engagement_date or last contact is derived from a restricted Engagement, the alert can leak the existence and the contact of an engagement the recipient cannot see in the CRM. The nightly job computes across all engagements, so it is unclear whether it runs with the recipient's permissions.",
-          "proposer_last_move": "REVISED",
-          "current_state": "ESCALATED_TO_HUMAN",
-          "proposer_confidence": 0.75,
-          "critic_confidence": 0.5,
-          "rounds_contested": 1,
-          "last_proposer_round": 2,
-          "last_critic_challenge_round": 1,
-          "accepted_assumption_text": null,
-          "escalation_reason": "POLICY_ESCALATED_BY_CRITIC",
-          "history": [
-            "R1:Critic:CHALLENGED",
-            "R2:Proposer:REVISED",
-            "R2:Critic:ESCALATED_TO_HUMAN"
-          ]
-        },
-        "C5": {
-          "issue_id": "C5",
-          "target_assumption_id": "A1",
-          "challenge_text": "The go-live behavior and the transition semantics are ill-defined. Countries with no Engagement history are flagged once at go-live; for a CRM that has not been logging engagement consistently, this can dump a large batch of labeled-cold alerts onto coordinators on day one, and 'flagged once' then never re-evaluates them if they are never engaged. Also, 'cold' is an edge-triggered notification, and the re-reminder is only through the digest every 30 days. A job failure or a skipped nightly run could silently miss the crossing, and there is no detection of job failure. The 'exactly one notification' criterion is untestable without idempotency and missed-run handling.",
+          "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
           "proposer_confidence": 0.75,
-          "critic_confidence": 0.3,
+          "critic_confidence": 0.4,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_assumption_text": "'cold' means no logged engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days",
+          "accepted_fingerprint": "defe27bbc5f8d9b0",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
             "R2:Proposer:REVISED",
             "R2:Critic:ACCEPTED"
           ]
+        },
+        "C5": {
+          "issue_id": "C5",
+          "target_assumption_id": "A5",
+          "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
+          "proposer_last_move": "DEFENDED",
+          "current_state": "ESCALATED_TO_HUMAN",
+          "proposer_confidence": 0.6,
+          "critic_confidence": 0.55,
+          "rounds_contested": 1,
+          "last_proposer_round": 2,
+          "last_critic_challenge_round": 1,
+          "accepted_fingerprint": null,
+          "escalation_reason": "POLICY_ESCALATED_BY_CRITIC",
+          "history": [
+            "R1:Critic:CHALLENGED",
+            "R2:Proposer:DEFENDED",
+            "R2:Critic:ESCALATED_TO_HUMAN"
+          ]
         }
       },
+      "rejected_references": [],
       "disagreement_score": 0.0,
       "termination_reason": "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)",
       "should_stop": true
     }
   ],
   "final_decision": {
-    "feature_request": "The CRM should alert us when our relationship with a country goes cold.",
-    "executive_summary": "V1 runs a nightly job that marks a country cold when no Engagement has been logged for more than 90 days (one global threshold) and the country has no active Mission. Each cold country gets one in-app notification per 30-day window. The job is idempotent and self-heals after a skipped night, and alerts auto-clear within 24 hours of a new Engagement. Coordinators enter nothing. The main trade-off was simplicity against accuracy: the Critic pressed on false positives from a single threshold and uneven logging, and on false negatives from bulk-logged Engagements. These were bounded by active-mission suppression, a reason line, a day-one cap of 25%, and a one-off two-part release gate, instead of per-country settings or Engagement-type filtering. The agents agreed on the engineering scope but could not settle the sensitivity of alert content. Three scope items are pending a human decision on C4: the in-app notification content, the weekly email digest, and send-time recipient resolution with its fallback role. Humans must decide whether a country name with a 'cold' label may appear in email and whether restricted Engagements may count toward the days-since figure. They must also confirm the 3-of-10 release-hold cutoff.",
+    "feature_request": "We need a better way to track who is the right person to contact in each country.",
+    "executive_summary": "v1 adds a 'Who to contact' panel on each country page that recommends one primary and one backup contact per existing role type, chosen by a deterministic rule over existing data, with no new tables and no manual input. It also adds a 'No engagement logged in 180 days' badge shown next to the actual last-engaged date, a confirmed and audited 'No longer in post' action with 'Reinstate', and access filtering applied before ranking. The main trade-off argued was how far a recency-based, automatically derived pick can be trusted without implying that the person is in post or is the correct diplomatic channel. The one-line 'why' evidence, its caption and the advisory label, along with the related success criterion, are pending a human decision on C5. That decision is whether the product may designate a recommended contact by role at all or must list all active role holders.",
     "agreed_scope_included": [
-      "Nightly job computes last_engagement_date per Country as the most recent existing Engagement linked to any Contact, Mission, or Project of that country. The job runs with system permissions and counts restricted Engagements toward 'warm', because they can only suppress an alert and never reveal anything. It is derived on the fly with no new entity or manual field.",
-      "A country is cold when days since last_engagement_date exceed one global threshold (default 90 days, one system config value, no per-country settings) AND the country has no active Mission. Active-mission countries are suppressed. Countries with no Engagement history are treated as cold with a 'no recorded engagement' label and counted in the day-one cap.",
-      "Level-triggered state instead of edge-triggered: one auto-filled column, Country.last_alerted_at, written by the job. Each night a cold country with no alert in the last 30 days gets one in-app notification. Reruns are idempotent and a skipped night self-heals on the next run. Nothing is entered by coordinators.",
-      "Alert auto-clears within 24 hours of a new Engagement being logged for the country. No acknowledge, snooze, or dismiss action is required of the coordinator.",
-      "Nightly job failures are written to the existing platform job logging and alerting for engineering. No new screen or queue is added.",
-      "One-off pre-release release gate, not a product feature: a single query over existing Engagement data lists unflagged countries whose most recent Engagement is a bulk or multi-recipient record. Coordinators review a sample of about 10 of them and the result is recorded. No new screen, table, field, or ongoing review step is added."
+      "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
+      "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
+      "A 'No engagement logged in 180 days' badge on any recommended contact with no logged Engagement in the last 180 days, shown next to the actual last-engaged date so users can judge it themselves. The threshold is a single global constant, not a per-country setting. Before release, one query on a production data snapshot measures the share of recommendations that would be badged, and the constant is adjusted globally if the badge fires on most recommendations.",
+      "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A 'No longer in post' action on the contact card sets that existing status after a confirmation dialog. Each status change records actor and timestamp (existing audit log if there is one, otherwise two auto-filled columns on Contact), and a 'Reinstate' action on the contact card restores the previous status. There is no approval workflow.",
+      "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. The user's access filter is applied to the candidate set before ranking. The 'why' line (project names, mission names, engagement dates) and the backup contact are built only from records visible to the viewer. If a linked Project or Engagement is not visible, that element is omitted from the line. No new RBAC is added.",
+      "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated."
     ],
     "scope_pending_human_decision": [
       {
-        "item": "In-app notification carries only the country link, the days-since count, and a reason line ('No logged engagement for N days; threshold 90; no active mission'). Last engagement date and last contact are not stored in the notification. They are rendered on the Country page at view time through the existing Country/Mission/Engagement permissions.",
+        "item": "A one-line 'why' under each recommendation, built from existing fields and always showing the evidence it rests on: last-engaged date, the linked Project or Mission, and the contact record's existing system-maintained 'last updated' date (no new field, nothing entered by hand). A fixed caption states: 'Ranked by recent activity; does not confirm the person is currently in post.' The recommendation is labelled advisory.",
         "blocked_by": [
-          "C4"
-        ]
-      },
-      {
-        "item": "Weekly email digest to each recipient lists currently cold countries with country name, days-since band, and a link into the CRM. It contains no contact names, no engagement dates, and no engagement details.",
-        "blocked_by": [
-          "C4"
-        ]
-      },
-      {
-        "item": "Recipient resolution happens at send time. Recipients are the currently assigned Regional Coordinators whose accounts are active and who still hold Country access. If none qualify, the alert goes to existing Operations-role holders with access to that country, so the country never goes silently unalerted. Which role is the right fallback is an organisational decision for humans.",
-        "blocked_by": [
-          "C4"
+          "C5"
         ]
       }
     ],
     "agreed_scope_excluded": [
-      "Sentiment, relationship-health, or ML scoring of engagement quality",
-      "Per-country, per-region, or per-contact thresholds, seasonality calendars, exclusion lists, and any settings someone must maintain per country",
-      "Weighting or filtering Engagements by type in the running product, for example mass-mailing detection. This is revisited only if the release-gate or post-launch evidence shows masking.",
-      "Dashboards, 'cold countries' lists or queues, job-health screens, and cross-country ranking views",
-      "Snooze, acknowledge, dismiss, approval, or escalation workflows",
-      "Automatic ingestion of email, calendar, or phone activity to infer engagement",
-      "New entities or tables, and new required fields for Regional Coordinators",
-      "Alert delivery to channels outside the CRM other than the weekly digest (no SMS or chat), and to users outside existing access roles",
-      "Per-recipient recomputation of last-engagement values based on each recipient's Engagement visibility",
-      "Defining which countries are strategic priorities, what counts as 'cold' diplomatically, the email classification policy, and the fallback-recipient policy. These are decisions for humans, not product design."
+      "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
+      "New tables or entities for routing rules, contact preferences or a topic taxonomy",
+      "Per-country or per-user configuration of staleness thresholds or ranking weights",
+      "Approval, review or verification workflows for contact changes",
+      "Alerts, notification queues, or dashboards of stale contacts or recent status changes across countries",
+      "ML or scoring models for contact ranking",
+      "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
+      "Automated verification of contact validity via email bounce, external directories or ministry feeds",
+      "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
+      "Bulk import or cleanup tooling for historical contact data",
+      "Ranking across role types or any single country-level 'best contact'. Each role type is recommended independently."
     ],
     "success_criteria": [
-      "Every non-suppressed country over the 90-day threshold gets exactly one in-app notification per 30-day window. Verified by back-test and by rerunning the nightly job twice on the same day (idempotent, zero duplicates).",
-      "After a simulated skipped nightly run, the next run produces all missed notifications with no manual intervention.",
-      "Alerts auto-clear within 24 hours of a new Engagement being logged for that country.",
-      "Countries with an active Mission produce zero cold alerts.",
-      "Zero new fields or manual steps are required of Regional Coordinators. The only new schema is the auto-filled Country.last_alerted_at column.",
-      "Weekly digest emails contain zero contact names and zero engagement dates (automated test on rendered output).",
-      "Delivery test: 100% of cold countries resolve to at least one active recipient with Country access. Countries with no assigned active coordinator resolve to the fallback role.",
-      "Day-one back-test: no more than 25% of ~100 countries are flagged, including no-history countries. If the share is higher, the threshold is escalated to humans before release.",
-      "Release gate, precision: coordinators confirm a sample of 10 flagged countries as truly cold, and the result is recorded.",
-      "Release gate, false negatives: coordinators review a sample of about 10 unflagged countries whose most recent Engagement is a bulk or multi-recipient record, and the result is recorded. If 3 or more of the 10 are judged genuinely cold (the 3-of-10 cutoff is a proposed default for humans to confirm), release is held and the threshold and Engagement-type question goes back to humans before launch.",
-      "Weekly digest is delivered to 100% of recipients who have at least one cold country."
+      "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
+      "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
+      "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the badge, none with a more recent Engagement do, and every badge sits next to the actual last-engaged date. A pre-release query reports the badge rate on a real data snapshot, and the constant is reviewed before release if more than 50% of recommendations are badged.",
+      "In permission tests with users who have restricted access, 0 hidden contacts, countries, project or mission names, engagement dates or backup contacts appear in the panel, the 'why' line or filtered search. The recommendation shown to a restricted user equals the one computed over only their visible records.",
+      "In tests, 100% of 'No longer in post' changes require confirmation and record actor and timestamp, and 'Reinstate' restores the prior status and returns the contact to the ranking."
+    ],
+    "success_criteria_pending": [
+      {
+        "item": "100% of recommendations display a 'why' line, the caption that it does not confirm the person is in post, and an advisory label. 0 inactive or departed contacts are recommended in the test dataset.",
+        "blocked_by": [
+          "C5"
+        ]
+      }
     ],
     "surfaced_assumptions": [
       {
         "assumption_id": "A1",
-        "assumption": "'Cold' means no logged Engagement of any type with any contact, mission, or project of the country within a single global threshold of 90 days.",
-        "was_challenged": true,
-        "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C1 (single global threshold) ended ACCEPTED after active-mission suppression and a reason line were added. C5 (go-live and edge-trigger semantics) ended ACCEPTED after the move to level-triggered alerting with Country.last_alerted_at."
+        "assumption": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
+        "was_challenged": false,
+        "final_disposition": "ACCEPTED",
+        "resolution_notes": "Not challenged; accepted as written, with the four existing role types as the only purpose key."
       },
       {
         "assumption_id": "A2",
-        "assumption": "Engagement records already in the CRM are logged as part of normal work and are complete enough to act as the activity signal; Regional Coordinators will not be asked to enter anything extra.",
+        "assumption": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
         "was_challenged": true,
         "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C2 ended ACCEPTED after the Proposer added a precision gate and a false-negative release gate with a 3-of-10 hold rule. In-product Engagement-type filtering stays out of scope."
+        "resolution_notes": "C1 challenged that engagement recency does not show a person is in post; the Proposer revised the design to show evidence dates and a caption, and the Critic accepted it for an MVP."
       },
       {
         "assumption_id": "A3",
-        "assumption": "Each country already has an assigned Regional Coordinator in the existing access model, and alerts go to that person and respect existing Country/Mission permissions.",
+        "assumption": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
         "was_challenged": true,
-        "final_disposition": "ESCALATED_TO_HUMAN",
-        "resolution_notes": "C3 (unassigned or departed coordinators) ended ACCEPTED with send-time recipient resolution and an Operations-role fallback. C4 (email confidentiality and restricted Engagements) was ESCALATED_TO_HUMAN, so the notification, digest, and recipient-resolution scope items stay pending."
+        "final_disposition": "REVISED_AND_ACCEPTED",
+        "resolution_notes": "C4 challenged the single global 180-day badge as noisy; the Proposer revised it to a factual label shown beside the last-engaged date plus a pre-release badge-rate query, and the Critic accepted."
       },
       {
         "assumption_id": "A4",
-        "assumption": "In-app notification plus a weekly email digest is sufficient timeliness; real-time alerting is not needed because relationships go cold over weeks, not hours.",
-        "was_challenged": false,
-        "final_disposition": "ACCEPTED",
-        "resolution_notes": "Not challenged. In-app notification plus a weekly digest was accepted as sufficient timeliness."
+        "assumption": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
+        "was_challenged": true,
+        "final_disposition": "REVISED_AND_ACCEPTED",
+        "resolution_notes": "C2 raised leakage of restricted data through the 'why' line and backup contact; the Proposer revised so access filtering happens before ranking and permission tests are broadened, and the Critic accepted."
+      },
+      {
+        "assumption_id": "A5",
+        "assumption": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
+        "was_challenged": true,
+        "final_disposition": "ESCALATED_TO_HUMAN",
+        "resolution_notes": "C5 questioned whether a single recommended pick implies the correct channel; the Proposer defended its structural mitigations and the Critic escalated to a human as a policy question, so it remains open."
+      },
+      {
+        "assumption_id": "A6",
+        "assumption": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
+        "was_challenged": true,
+        "final_disposition": "REVISED_AND_ACCEPTED",
+        "resolution_notes": "C3 challenged the one-click status change; the Proposer added confirmation, actor and timestamp recording and a Reinstate action, and the Critic accepted, with no mechanism to push staff to flag departures."
       }
     ],
     "open_questions_for_humans": [
       {
-        "issue_id": "C4",
-        "decision_owner": "Head of Diplomatic Security (data classification and clearance authority), with Legal; the product owner should route this",
-        "question": "Engineering cannot settle the policy on what an alert may reveal. The Proposer removed contact names and engagement dates from the email and kept only country name, a days-since band, and a CRM link. Two points remain. (1) May a country name with a 'cold' label appear in an email that leaves the CRM's access-controlled boundary? If not, the digest becomes link-only with no country names. (2) May restricted Engagements count toward 'warm' in the system-run job, even though the days-since figure can then reflect an Engagement the recipient cannot see? Please also confirm that the fallback recipient role, currently Operations-role holders with country access, is the right one."
+        "issue_id": "C5",
+        "decision_owner": "Head of Diplomatic Protocol or equivalent policy owner (product owner to route)",
+        "question": "Engineering cannot settle this policy question: may the product designate a single 'recommended' contact per role type, labelled advisory, or must it list all active role holders for a country without a recommended pick? The concern is that coordinators will treat the pick as the correct channel for every matter, including where protocol requires a specific channel such as the foreign ministry. The answer decides whether the 'why' line, caption and advisory label ship as proposed or the panel falls back to a display-only list of all active holders by role, which needs no schema change."
       }
     ],
     "final_disagreement_score": 0.0,
-    "proposer_confidence": 0.72,
-    "critic_confidence": 0.3,
+    "proposer_confidence": 0.74,
+    "critic_confidence": 0.45,
     "termination_reason": "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)"
   },
   "summary_corrections": []
