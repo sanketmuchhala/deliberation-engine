@@ -48,6 +48,7 @@ def render_markdown(doc: FinalDecisionDocument, ledger: dict[str, dict]) -> str:
         *[f"- {item}" for item in doc.agreed_scope_excluded],
         "\n### Success Criteria",
         *[f"- {item}" for item in doc.success_criteria],
+        *[f"- *Pending:* {p.item} *(waits on {', '.join(p.blocked_by)})*" for p in doc.success_criteria_pending],
         "\n## 2. Surfaced Assumptions & Deliberation Outcomes",
         *[
             f"- **[{a.assumption_id}] {a.assumption}** "

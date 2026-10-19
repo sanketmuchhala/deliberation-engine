@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -10,7 +11,7 @@ from src.schemas import (
     FinalDecisionDocument,
     IssueLedgerEntry,
     OpenQuestion,
-    PendingScopeItem,
+    PendingItem,
     ProposerTurn,
     STATE_WEIGHT,
     SummarizerDraft,
@@ -40,6 +41,55 @@ def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().rstrip(".").casefold()
 
 
+def proposal_fingerprint(p_turn: ProposerTurn, assumption_id: str) -> str:
+    """Hash of what the Critic accepts for an assumption: its statement plus every scope item and
+    success criterion tagged with it. Whitespace, case, and order changes do not alter it."""
+    statement = next((a.statement for a in p_turn.assumptions if a.assumption_id == assumption_id), "")
+    dependents = sorted(
+        normalize(text)
+        for text, ids in [(x.item, x.assumption_ids) for x in p_turn.proposed_scope_in]
+        + [(c.criterion, c.assumption_ids) for c in p_turn.success_criteria]
+        if assumption_id in ids
+    )
+    return hashlib.sha256("\n".join([normalize(statement), *dependents]).encode()).hexdigest()[:16]
+
+
+def proposer_reference_errors(p_turn: ProposerTurn) -> list[str]:
+    valid = {a.assumption_id for a in p_turn.assumptions}
+    errors = []
+    for kind, text, ids in [("Scope item", x.item, x.assumption_ids) for x in p_turn.proposed_scope_in] + [
+        ("Success criterion", c.criterion, c.assumption_ids) for c in p_turn.success_criteria
+    ]:
+        unknown = sorted(set(ids) - valid)
+        if not ids or unknown:
+            problem = f"references unknown {', '.join(unknown)}" if unknown else "lists no assumption_ids"
+            errors.append(f"{kind} '{text[:60]}' {problem}; use your own assumption IDs ({', '.join(sorted(valid))})")
+    return errors
+
+
+def critic_reference_errors(c_turn: CriticTurn, ledger: dict[str, IssueLedgerEntry], valid: set[str]) -> list[str]:
+    return [
+        f"New issue {ch.issue_id} targets unknown {ch.target_assumption_id}; "
+        f"use a Proposer assumption ID ({', '.join(sorted(valid))})"
+        for ch in c_turn.challenges
+        if ch.issue_id not in ledger and ch.target_assumption_id not in valid
+    ]
+
+
+def split_by_escalation(
+    items: list[tuple[str, list[str]]], blocking: dict[str, list[str]]
+) -> tuple[list[str], list[PendingItem]]:
+    agreed: list[str] = []
+    pending: list[PendingItem] = []
+    for text, ids in items:
+        blocked_by = sorted({i for aid in ids for i in blocking.get(aid, [])})
+        if blocked_by:
+            pending.append(PendingItem(item=text, blocked_by=blocked_by))
+        else:
+            agreed.append(text)
+    return agreed, pending
+
+
 def assumption_disposition(issues: list[IssueLedgerEntry]) -> str:
     if any(e.current_state == ChallengeState.ESCALATED_TO_HUMAN for e in issues):
         return "ESCALATED_TO_HUMAN"
@@ -55,9 +105,9 @@ def build_decision_skeleton(
 ) -> FinalDecisionDocument:
     """Every fact in the decision document, computed from the ledger and the Proposer's final turn.
 
-    Scope comes from the Proposer's final structured scope; an in-scope item that relies on an
-    assumption targeted by an escalated issue is held as pending a human decision. The Summarizer
-    later fills in the prose (executive summary, notes, question wording) and nothing else.
+    Scope and success criteria come from the Proposer's final structured turn; any item that relies
+    on an assumption targeted by an escalated issue is held as pending a human decision. The
+    Summarizer later fills in the prose (executive summary, notes, question wording) and nothing else.
     """
     final = rounds_log[-1]
     proposer = final["proposer"]
@@ -66,14 +116,12 @@ def build_decision_skeleton(
     for e in escalated:
         blocking.setdefault(e.target_assumption_id, []).append(e.issue_id)
 
-    included: list[str] = []
-    pending: list[PendingScopeItem] = []
-    for scope in proposer["proposed_scope_in"]:
-        blocked_by = sorted({i for aid in scope["assumption_ids"] for i in blocking.get(aid, [])})
-        if blocked_by:
-            pending.append(PendingScopeItem(item=scope["item"], blocked_by=blocked_by))
-        else:
-            included.append(scope["item"])
+    included, pending = split_by_escalation(
+        [(x["item"], x["assumption_ids"]) for x in proposer["proposed_scope_in"]], blocking
+    )
+    criteria, pending_criteria = split_by_escalation(
+        [(c["criterion"], c["assumption_ids"]) for c in proposer["success_criteria"]], blocking
+    )
 
     statements: dict[str, str] = {}
     for record in rounds_log:
@@ -94,7 +142,8 @@ def build_decision_skeleton(
         agreed_scope_included=included,
         scope_pending_human_decision=pending,
         agreed_scope_excluded=list(proposer["proposed_scope_out"]),
-        success_criteria=list(proposer["success_criteria"]),
+        success_criteria=criteria,
+        success_criteria_pending=pending_criteria,
         surfaced_assumptions=assumptions,
         open_questions_for_humans=[
             OpenQuestion(
@@ -168,6 +217,26 @@ class DeliberationEngine:
         )
         return resp.choices[0].message.parsed
 
+    def _call_checked(
+        self, model: str, system_prompt: str, user_content: str, schema: type, check, rejected: list[str]
+    ):
+        """Ask again once if a turn references IDs that do not exist; fail loudly if it still does."""
+        turn = self._call_structured(model, system_prompt, user_content, schema)
+        errors = check(turn)
+        if errors:
+            rejected.extend(errors)
+            feedback = "\n".join(f"- {e}" for e in errors)
+            turn = self._call_structured(
+                model, system_prompt,
+                f"{user_content}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED BY THE ENGINE:\n{feedback}\n"
+                "Fix these references and answer again.",
+                schema,
+            )
+            errors = check(turn)
+            if errors:
+                raise ValueError(f"{schema.__name__} still has invalid references after one retry: {errors}")
+        return turn
+
     def run(self, feature_request: str, on_round_callback=None) -> tuple[FinalDecisionDocument, dict]:
         proposer_sys = load_prompt("proposer")
         critic_sys = load_prompt("critic")
@@ -175,6 +244,7 @@ class DeliberationEngine:
 
         ledger: dict[str, IssueLedgerEntry] = {}
         rounds_log: list[dict] = []
+        known_assumptions: set[str] = set()
 
         for round_no in range(1, self.max_rounds + 1):
             proposer_ctx = (
@@ -183,9 +253,11 @@ class DeliberationEngine:
                 f"ACTIVE ISSUE LEDGER:\n{[v.model_dump() for v in ledger.values()]}\n"
                 f"PREVIOUS ROUNDS:\n{rounds_log}"
             )
-            p_turn: ProposerTurn = self._call_structured(
-                self.proposer_model, proposer_sys, proposer_ctx, ProposerTurn
+            rejected: list[str] = []
+            p_turn: ProposerTurn = self._call_checked(
+                self.proposer_model, proposer_sys, proposer_ctx, ProposerTurn, proposer_reference_errors, rejected
             )
+            known_assumptions |= {a.assumption_id for a in p_turn.assumptions}
 
             for resp in p_turn.challenge_responses:
                 entry = ledger.get(resp.issue_id)
@@ -197,19 +269,18 @@ class DeliberationEngine:
                 entry.last_proposer_round = round_no
                 entry.history.append(f"R{round_no}:Proposer:{resp.move}")
 
-            # An acceptance is bound to the assumption text the Critic accepted. If the Proposer
-            # later changes or drops that assumption, the issue reopens for the Critic to re-judge.
-            assumption_text = {a.assumption_id: normalize(a.statement) for a in p_turn.assumptions}
+            # An acceptance is bound to what the Critic accepted: the target assumption plus every scope
+            # item and success criterion tagged with it. If any of that changes, the issue reopens.
             for entry in ledger.values():
                 if (
                     entry.current_state == ChallengeState.ACCEPTED
-                    and entry.accepted_assumption_text is not None
-                    and assumption_text.get(entry.target_assumption_id, "") != entry.accepted_assumption_text
+                    and entry.accepted_fingerprint is not None
+                    and proposal_fingerprint(p_turn, entry.target_assumption_id) != entry.accepted_fingerprint
                 ):
                     entry.current_state = ChallengeState.REVISED
                     entry.proposer_last_move = ChallengeState.REVISED
-                    entry.accepted_assumption_text = None
-                    entry.history.append(f"R{round_no}:Gate:REOPENED_ASSUMPTION_CHANGED")
+                    entry.accepted_fingerprint = None
+                    entry.history.append(f"R{round_no}:Gate:REOPENED_PROPOSAL_CHANGED")
 
             critic_ctx = (
                 f"FEATURE REQUEST:\n{feature_request}\n\n"
@@ -217,8 +288,9 @@ class DeliberationEngine:
                 f"PROPOSER OUTPUT THIS ROUND:\n{p_turn.model_dump_json(indent=2)}\n"
                 f"CURRENT ISSUE LEDGER:\n{[v.model_dump() for v in ledger.values()]}"
             )
-            c_turn: CriticTurn = self._call_structured(
-                self.critic_model, critic_sys, critic_ctx, CriticTurn
+            c_turn: CriticTurn = self._call_checked(
+                self.critic_model, critic_sys, critic_ctx, CriticTurn,
+                lambda turn: critic_reference_errors(turn, ledger, known_assumptions), rejected,
             )
 
             for ch in c_turn.challenges:
@@ -242,7 +314,7 @@ class DeliberationEngine:
                         entry.current_state = ChallengeState.CHALLENGED
                     elif ch.status == "ACCEPTED":
                         entry.current_state = ChallengeState.ACCEPTED
-                        entry.accepted_assumption_text = assumption_text.get(entry.target_assumption_id, "")
+                        entry.accepted_fingerprint = proposal_fingerprint(p_turn, entry.target_assumption_id)
                     elif ch.status == "ESCALATED_TO_HUMAN":
                         entry.current_state = ChallengeState.ESCALATED_TO_HUMAN
                         entry.escalation_reason = "POLICY_ESCALATED_BY_CRITIC"
@@ -259,7 +331,7 @@ class DeliberationEngine:
             for entry in ledger.values():
                 if entry.current_state == ChallengeState.CONCEDED and entry.issue_id not in mentioned:
                     entry.current_state = ChallengeState.ACCEPTED
-                    entry.accepted_assumption_text = assumption_text.get(entry.target_assumption_id, "")
+                    entry.accepted_fingerprint = proposal_fingerprint(p_turn, entry.target_assumption_id)
                     entry.history.append(f"R{round_no}:Gate:CONCESSION_ACCEPTED")
 
             # Deadlock only when, in this round, the Proposer answered and the Critic explicitly
@@ -314,6 +386,7 @@ class DeliberationEngine:
                 "proposer": p_turn.model_dump(),
                 "critic": c_turn.model_dump(),
                 "ledger_snapshot": {k: v.model_dump() for k, v in ledger.items()},
+                "rejected_references": rejected,
                 "disagreement_score": disagreement_score,
                 "termination_reason": termination_reason,
                 "should_stop": should_stop,

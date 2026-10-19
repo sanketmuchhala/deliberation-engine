@@ -5,7 +5,7 @@ You write the prose of a decision document for product managers and executive st
 ## Inputs
 You receive the feature request, the **decision document facts** computed by the engine, the final issue ledger, and the full round-by-round trace.
 
-The facts are final. The engine has already built the included, pending, and excluded scope, the success criteria, each assumption's disposition, the set of escalated issues that need an open question, the disagreement score, the confidences, and the termination reason. Your prose must agree with those facts. Do not restate a scope item as agreed if the facts list it as pending a human decision.
+The facts are final. The engine has already built the included, pending, and excluded scope, the agreed and pending success criteria, each assumption's disposition, the set of escalated issues that need an open question, the disagreement score, the confidences, and the termination reason. Your prose must agree with those facts. Do not describe a scope item or success criterion as agreed if the facts list it as pending a human decision.
 
 ## What you write
 - `executive_summary` — 3–5 sentences: what v1 will do, the main trade-off that was argued, and what still needs a human decision (including any pending scope).

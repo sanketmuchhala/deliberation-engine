@@ -7,20 +7,21 @@ from src.schemas import CriticTurn, ProposerTurn, SummarizerDraft
 CONVERGED = "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)"
 
 
-def proposer(*moves, a1="s"):
+def proposer(*moves, a1="s", x="x", w="w", x_ids=("A1",)):
     return ProposerTurn(
-        proposed_scope_in=[{"item": "x", "assumption_ids": ["A1"]}, {"item": "w", "assumption_ids": ["A2"]}],
+        proposed_scope_in=[{"item": x, "assumption_ids": list(x_ids)}, {"item": w, "assumption_ids": ["A2"]}],
         proposed_scope_out=["y"],
         assumptions=[{"assumption_id": f"A{i}", "statement": a1 if i == 1 else "s", "rationale": "r"} for i in (1, 2, 3)],
-        success_criteria=["z"], overall_confidence=0.7,
+        success_criteria=[{"criterion": "z", "assumption_ids": ["A1"]}, {"criterion": "v", "assumption_ids": ["A2"]}],
+        overall_confidence=0.7,
         challenge_responses=[{"issue_id": i, "move": m, "response": "r", "confidence": 0.8} for i, m in moves],
     )
 
 
-def critic(*statuses, ready=False):
+def critic(*statuses, ready=False, target="A1"):
     return CriticTurn(
         challenges=[
-            {"issue_id": i, "target_assumption_id": "A1", "challenge_text": "t",
+            {"issue_id": i, "target_assumption_id": target, "challenge_text": "t",
              "evaluation_of_proposer": "e", "status": s, "confidence": 0.8}
             for i, s in statuses
         ],
@@ -128,9 +129,40 @@ class DeliberationStateMachineTest(unittest.TestCase):
             critic(("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True),
         )
         self.assertEqual(self.states(trace, round_index=2), {"C1": "ACCEPTED", "C2": "REVISED", "C3": "ACCEPTED"})
-        self.assertIn("R3:Gate:REOPENED_ASSUMPTION_CHANGED", self.history(trace, "C1"))
+        self.assertIn("R3:Gate:REOPENED_PROPOSAL_CHANGED", self.history(trace, "C1"))
         self.assertEqual(trace["rounds"][-1]["termination_reason"], CONVERGED)
-        self.assertNotIn("R4:Gate:REOPENED_ASSUMPTION_CHANGED", self.history(trace, "C1"))
+        self.assertNotIn("R4:Gate:REOPENED_PROPOSAL_CHANGED", self.history(trace, "C1"))
+
+    def test_changed_scope_item_reopens_only_issues_on_its_assumption(self):
+        accepted = [
+            proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED")),
+            critic(("C1", "ACCEPTED"), ("C2", "ACCEPTED"), ("C3", "CHALLENGED")),
+        ]
+        settle = critic(("C1", "ACCEPTED"), ("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True)
+        trace = self.run_script(*accepted, proposer(("C3", "REVISED"), x="x, active missions only"), settle)
+        self.assertIn("R3:Gate:REOPENED_PROPOSAL_CHANGED", self.history(trace, "C1"))
+        trace = self.run_script(*accepted, proposer(("C3", "REVISED"), w="w, active missions only"), settle)
+        self.assertNotIn("R3:Gate:REOPENED_PROPOSAL_CHANGED", self.history(trace, "C1"))  # w relies on A2, not A1
+
+    def test_invalid_references_get_one_corrective_retry(self):
+        trace = self.run_script(
+            proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED"), x_ids=("A9",)),
+            proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED")),
+            critic(("C1", "ACCEPTED"), ("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ("C4", "CHALLENGED"), target="A9"),
+            critic(("C1", "ACCEPTED"), ("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True),
+        )
+        self.assertEqual(trace["rounds"][-1]["termination_reason"], CONVERGED)
+        rejected = trace["rounds"][1]["rejected_references"]
+        self.assertEqual(len(rejected), 2)
+        self.assertIn("references unknown A9", rejected[0])
+        self.assertIn("New issue C4 targets unknown A9", rejected[1])
+
+    def test_references_still_invalid_after_retry_fail_loudly(self):
+        engine = DeliberationEngine()
+        replies = iter([*ROUND_1, proposer(x_ids=()), proposer(x_ids=())])
+        engine._call_structured = lambda *args, **kwargs: next(replies)
+        with self.assertRaisesRegex(ValueError, "lists no assumption_ids"):
+            engine.run("test request")
 
     def test_concession_omitted_by_critic_is_accepted(self):
         trace = self.run_script(
@@ -220,6 +252,8 @@ class DeliberationStateMachineTest(unittest.TestCase):
         doc = trace["final_decision"]
         self.assertEqual(doc["agreed_scope_included"], ["w"])
         self.assertEqual(doc["scope_pending_human_decision"], [{"item": "x", "blocked_by": ["C2", "C3"]}])
+        self.assertEqual(doc["success_criteria"], ["v"])
+        self.assertEqual(doc["success_criteria_pending"], [{"item": "z", "blocked_by": ["C2", "C3"]}])
         questions = {q["issue_id"]: q for q in doc["open_questions_for_humans"]}
         self.assertEqual(list(questions), ["C2", "C3"])
         self.assertEqual(questions["C3"]["decision_owner"], "Legal")

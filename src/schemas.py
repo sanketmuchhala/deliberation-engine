@@ -45,7 +45,13 @@ class AssumptionItem(BaseModel):
 class ScopeItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     item: str = Field(description="One in-scope capability or rule")
-    assumption_ids: list[str] = Field(description="Assumption IDs this item relies on, e.g., [\"A2\"]")
+    assumption_ids: list[str] = Field(description="Assumption IDs this item relies on (at least one), e.g., [\"A2\"]")
+
+
+class SuccessCriterion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    criterion: str = Field(description="A measurable success criterion")
+    assumption_ids: list[str] = Field(description="Assumption IDs this criterion relies on (at least one)")
 
 
 class ProposerResponseItem(BaseModel):
@@ -61,7 +67,7 @@ class ProposerTurn(BaseModel):
     proposed_scope_in: list[ScopeItem] = Field(min_length=1)
     proposed_scope_out: list[str] = Field(min_length=1)
     assumptions: list[AssumptionItem] = Field(min_length=2)
-    success_criteria: list[str] = Field(min_length=1)
+    success_criteria: list[SuccessCriterion] = Field(min_length=1)
     challenge_responses: list[ProposerResponseItem] = Field(default_factory=list)
     overall_confidence: float = Field(ge=0.0, le=1.0)
 
@@ -115,7 +121,7 @@ class SummarizerDraft(BaseModel):
     open_questions_for_humans: list[OpenQuestion]
 
 
-class PendingScopeItem(BaseModel):
+class PendingItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
     item: str
     blocked_by: list[str] = Field(description="Escalated issue IDs this item waits on")
@@ -126,9 +132,10 @@ class FinalDecisionDocument(BaseModel):
     feature_request: str
     executive_summary: str
     agreed_scope_included: list[str]
-    scope_pending_human_decision: list[PendingScopeItem]
+    scope_pending_human_decision: list[PendingItem]
     agreed_scope_excluded: list[str]
     success_criteria: list[str]
+    success_criteria_pending: list[PendingItem]
     surfaced_assumptions: list[SurfacedAssumptionSummary]
     open_questions_for_humans: list[OpenQuestion]
     final_disagreement_score: float
@@ -148,6 +155,6 @@ class IssueLedgerEntry(BaseModel):
     rounds_contested: int = 1
     last_proposer_round: int = 0
     last_critic_challenge_round: int = 0
-    accepted_assumption_text: Optional[str] = None
+    accepted_fingerprint: Optional[str] = None
     escalation_reason: Optional[EscalationReason] = None
     history: list[str] = Field(default_factory=list)
