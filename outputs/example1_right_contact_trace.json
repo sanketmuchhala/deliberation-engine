@@ -6,218 +6,180 @@
       "proposer": {
         "proposed_scope_in": [
           {
-            "item": "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
+            "scope_id": "S1",
+            "item": "Read-only 'Who to contact' card on the existing Country page. It shows one recommended contact for each of three contexts (general country engagement, each active Mission, each active Project), plus up to 2 ranked alternates per context.",
             "assumption_ids": [
               "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "A one-line 'why' under each recommendation, built from existing fields (e.g. 'Last engaged 12 Jan; lead on Project X'). The recommendation is labelled advisory.",
-            "assumption_ids": [
               "A2",
               "A5"
             ]
           },
           {
-            "item": "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
+            "scope_id": "S2",
+            "item": "Deterministic ranking computed at read time from existing data, with no manual designation. Order is: role match to the context, then affiliation to that Mission or Project, then most recent Engagement date, then alphabetical tiebreak. Each recommendation shows a one-line 'why' (e.g. 'Mission delegate, last engaged 12 days ago').",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "A 'may be outdated' badge on any recommended contact with no logged Engagement in the last 180 days. The threshold is a single global constant, not a per-country setting.",
+            "scope_id": "S3",
+            "item": "Staleness handling: contacts flagged inactive or past term end are excluded from ranking. Each shown contact displays 'last engaged N days ago' and gets a 'may be outdated' badge if there has been no Engagement in 180 days (a fixed constant, not a per-country setting).",
+            "assumption_ids": [
+              "A2",
+              "A4"
+            ]
+          },
+          {
+            "scope_id": "S4",
+            "item": "The card reuses the existing Country/Mission access model: it shows only the contacts and fields the viewing user can already see on the Contact and Country records. No new permission rules are introduced.",
             "assumption_ids": [
               "A3"
             ]
           },
           {
-            "item": "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A one-click 'No longer in post' action on the contact card sets that existing status; there is no new field and no approval step.",
+            "scope_id": "S5",
+            "item": "Empty and fallback states: if no eligible contact exists for a context, show 'No current contact on record' with a link to the Country's existing contact list. Fall back from the Mission or Project context to the general country context, labelled as a fallback.",
             "assumption_ids": [
-              "A6"
-            ]
-          },
-          {
-            "item": "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. No new RBAC is added.",
-            "assumption_ids": [
-              "A4"
-            ]
-          },
-          {
-            "item": "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated.",
-            "assumption_ids": [
+              "A1",
               "A2",
-              "A1"
+              "A5"
             ]
           }
         ],
         "proposed_scope_out": [
-          "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
-          "New tables or entities for routing rules, contact preferences or a topic taxonomy",
-          "Per-country or per-user configuration of staleness thresholds or ranking weights",
-          "Approval, review or verification workflows for contact changes",
-          "Alerts, notification queues, or dashboards of stale contacts across countries",
-          "ML or scoring models for contact ranking",
-          "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
-          "Automated verification of contact validity via email bounce, external directories or ministry feeds",
-          "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
-          "Bulk import or cleanup tooling for historical contact data"
+          "Manual 'primary contact' designation or any extra fields Regional Coordinators must fill in",
+          "New tables or entities (reuses Country, Contact, Mission, Project, Engagement only)",
+          "ML or scoring models for contact recommendation",
+          "Approval, review, or verification workflows for recommendations",
+          "Cross-country dashboards, queues, or reports (e.g. 'countries with no contact')",
+          "Automated notifications, reminders, or outreach to confirm contact details",
+          "Protocol, seniority, or diplomatic-precedence ranking (a policy decision for humans, not product design)",
+          "Availability, time-zone, language, or preferred-channel handling",
+          "Escalation chains or formal backup-contact designation",
+          "Integrations with external directories or ministry data sources",
+          "Custom RBAC or new data-classification labels"
         ],
         "assumptions": [
           {
             "assumption_id": "A1",
-            "statement": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
-            "rationale": "Reusing existing role types avoids a new taxonomy and schema. It covers the most common 'who do I call' lookups without anyone maintaining a new list."
+            "statement": "'Right person' depends on context, and three contexts (general country engagement, active Mission, active Project) cover the main Operations and Country Engagement use cases. They map onto the existing Contact roles and Mission/Project affiliations without a new taxonomy.",
+            "rationale": "Reusing existing roles and affiliations means no schema change and no new data entry, and it keeps v1 to one view."
           },
           {
             "assumption_id": "A2",
-            "statement": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
-            "rationale": "Deriving the answer from data already captured gives zero extra data-entry friction for busy Regional Coordinators, and needs no schema change."
+            "statement": "A rules-based ranking over data the CRM already holds (role, affiliation, Engagement recency, active status) is accurate enough for v1. Coordinators will not designate primaries by hand.",
+            "rationale": "Deterministic rules are simple to build, test, and explain. Because engagement logging already happens, ranking stays current without extra effort from busy Regional Coordinators."
           },
           {
             "assumption_id": "A3",
-            "statement": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
-            "rationale": "One constant is cheap to build, test and explain. A per-country setting would need maintenance across ~100 countries and would rot."
+            "statement": "The existing Country/Mission access model already controls who may see which contacts and fields, and the new card can inherit it unchanged.",
+            "rationale": "This avoids building or auditing a new permission layer, and the card cannot expose anything the underlying records do not already expose."
           },
           {
             "assumption_id": "A4",
-            "statement": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
-            "rationale": "Inheriting existing permissions avoids building a new access model. It bounds the risk of exposing contacts to users who should not see them."
+            "statement": "Contact records already carry, or can derive, an active/inactive or term-end indicator, and Engagement records carry a contact and a date. A single fixed 180-day staleness threshold is a reasonable v1 default.",
+            "rationale": "A fixed constant avoids per-country settings that someone would have to maintain. It can be tuned later from pilot feedback."
           },
           {
             "assumption_id": "A5",
-            "statement": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
-            "rationale": "Protocol and precedence are diplomatic policy, outside product design. Staying advisory keeps the rule simple and transparent and avoids inventing policy."
-          },
-          {
-            "assumption_id": "A6",
-            "statement": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
-            "rationale": "Using an existing field with a one-click action adds no schema and no new workflow. The staleness badge covers contacts nobody has flagged."
+            "statement": "The users are existing Operations and Country Engagement staff who are already inside the CRM and look up contacts from a Country page. A read-only card in that spot meets the need, with no new navigation or tool.",
+            "rationale": "Placing the feature on a screen people already use means there is no new workflow to adopt and one small UI surface to build."
           }
         ],
         "success_criteria": [
           {
-            "criterion": "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
-            "assumption_ids": [
-              "A2"
+            "criterion": "For 100% of countries with at least one active contact, the card shows a recommended contact for the general context with zero manual data entry. The number of new required fields for Regional Coordinators is 0.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S5"
             ]
           },
           {
-            "criterion": "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
-            "assumption_ids": [
-              "A1",
-              "A2"
+            "criterion": "In a pilot review of 30 countries, spanning regions and with varied engagement history, Regional Coordinators judge the top recommendation correct or acceptable in at least 80% of cases.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S3"
             ]
           },
           {
-            "criterion": "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the 'may be outdated' badge, and none with a more recent Engagement do.",
-            "assumption_ids": [
-              "A3"
+            "criterion": "In a test dataset, 100% of contacts with no Engagement in 180 days show the 'may be outdated' badge, and 100% of inactive or term-ended contacts are excluded from recommendations.",
+            "scope_item_ids": [
+              "S3"
             ]
           },
           {
-            "criterion": "In permission tests, 0 contacts or countries appear in the panel or filtered search for a user who lacks access to that country or mission under existing rules.",
-            "assumption_ids": [
-              "A4"
+            "criterion": "Permission tests with at least 5 role/country-access combinations show 0 contacts or fields displayed in the card that the user cannot see on the underlying Contact or Country record.",
+            "scope_item_ids": [
+              "S4",
+              "S1"
             ]
           },
           {
-            "criterion": "100% of recommendations display a 'why' line and an advisory label, and 0 inactive or departed contacts are recommended in the test dataset.",
-            "assumption_ids": [
-              "A5",
-              "A6"
+            "criterion": "The card renders in under 1 second at p95 for the largest country by contact count, and shows the correct empty-state or fallback label in 100% of test cases with no eligible contact.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S5"
             ]
           }
         ],
         "challenge_responses": [],
-        "overall_confidence": 0.72
+        "overall_confidence": 0.62
       },
       "critic": {
         "challenges": [
           {
             "issue_id": "C1",
             "target_assumption_id": "A2",
-            "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
-            "evaluation_of_proposer": "A2 is asserted as 'accurate enough' with no evidence. Success criterion 1 measures only that a recommendation appears (90% coverage), not that it is correct, so the metric rewards confident wrong answers. No validation against real data is planned.",
-            "status": "CHALLENGED",
-            "confidence": 0.8
-          },
-          {
-            "issue_id": "C2",
-            "target_assumption_id": "A4",
-            "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
-            "evaluation_of_proposer": "A4 treats permission inheritance as sufficient, but the success criterion covers only contacts and countries and misses derived text fields and the cross-entity joins.",
-            "status": "CHALLENGED",
-            "confidence": 0.75
-          },
-          {
-            "issue_id": "C3",
-            "target_assumption_id": "A6",
-            "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
-            "evaluation_of_proposer": "The proposal explicitly removes approval and says nothing about audit or undo. The risk is acknowledged only through the badge, which does not cover wrongly excluded contacts.",
+            "challenge_text": "Ranking by most recent Engagement date rewards whoever our staff happened to talk to, not who is authoritative. Example: a Regional Coordinator logs a call with a junior ministry desk officer last week, and that person outranks the Director-level Mission delegate last engaged 100 days ago. The card then tells staff to contact the wrong person on a sensitive mission. Recency is also gameable by incidental logging (mass email, event attendance). Rank role/affiliation match above recency and bound recency as a tiebreaker only, or show why-text that exposes the weak basis.",
+            "evaluation_of_proposer": "Proposer claims 'accurate enough for v1' and relies on a 30-country pilot at 80% acceptance, which means up to 20% wrong recommendations on diplomatically sensitive outreach. No bound on the harm of a wrong top pick is given, and no distinction between a Mission delegate and any other role match.",
             "status": "CHALLENGED",
             "confidence": 0.7
           },
           {
-            "issue_id": "C4",
-            "target_assumption_id": "A3",
-            "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
-            "evaluation_of_proposer": "The proposer's rationale is only cost and simplicity. It does not address alert fatigue. The success criterion tests only that the threshold is implemented as coded, not that it is useful.",
+            "issue_id": "C2",
+            "target_assumption_id": "A4",
+            "challenge_text": "Staleness depends on Contact records having a reliable active/term-end flag, which the Proposer only says 'already carry, or can derive'. In practice, when a minister is reshuffled or a ministry contact leaves, nobody updates the Contact record, and the contact stays flagged active. The card then confidently recommends the departed person as the top pick, and the 'may be outdated' badge only appears after 180 days of silence. A contact engaged 20 days ago by email, which bounced or was answered by a successor, shows no warning. 180 days is also wrong for dormant-but-valid relationships (annual-cycle ministries) and too long for fast-turnover posts. Verify the field exists and is populated, and make the 'last verified' or term-end data visible on the card, not only engagement recency.",
+            "evaluation_of_proposer": "A4 is an unverified assumption about the data model, and the fixed 180-day constant is a guess. Engagement date measures our activity, not whether the person still holds the post. No handling exists for a recommended contact whose data is stale but recently engaged.",
             "status": "CHALLENGED",
-            "confidence": 0.65
+            "confidence": 0.72
+          },
+          {
+            "issue_id": "C3",
+            "target_assumption_id": "A3",
+            "challenge_text": "Inheriting the existing Country/Mission access model unchanged is not enough because the card aggregates across contexts and ranks. Scenarios: (1) a user with access to Country X but not to Mission M sees a fallback or ranking influenced by Mission-affiliated contacts or engagement history they cannot see, so the 'why' line ('Mission delegate, last engaged 12 days ago') leaks the existence of a restricted mission and the engagement timing of a restricted contact; (2) ranking is computed over all contacts and then filtered, so the absence or position of alternates reveals hidden ones; (3) 'last engaged N days ago' derives from Engagement records that may be more restricted than the Contact record. The 'why' text and the active Mission/Project lists must be computed only over records the viewer is authorized to see, and the success test must cover Engagement and Mission visibility, not just Contact fields.",
+            "evaluation_of_proposer": "The Proposer asserts 'the card cannot expose anything the underlying records do not already expose', but derived data (rank, recency, mission affiliation) is a new disclosure surface. The permission test criterion only checks contacts and fields displayed, not derived values or Mission/Engagement visibility.",
+            "status": "CHALLENGED",
+            "confidence": 0.75
+          },
+          {
+            "issue_id": "C4",
+            "target_assumption_id": "A5",
+            "challenge_text": "A single authoritative-looking 'recommended contact' on a read-only card invites over-trust and copy-paste outreach, with no signal of confidence. Example: a coordinator new to a country (turnover is high) trusts the card and sends a sensitive message to a ministry contact who is the wrong level or has moved on, with no prompt to verify. Also, the 'may be outdated' badge shown on many contacts in low-engagement countries (most of 100 countries will be quiet most of the time) becomes wallpaper that staff ignore, which is the alert-fatigue case. Define behavior when the top pick is badged or when the top two candidates are close in score, such as showing a 'low confidence, verify before contact' state instead of a confident recommendation.",
+            "evaluation_of_proposer": "A5 presumes users are experienced staff who will sanity-check the card; it ignores new coordinators and the fact that the badge threshold is global. No measure of badge frequency is in the success criteria, so alert fatigue is not tested.",
+            "status": "CHALLENGED",
+            "confidence": 0.6
           },
           {
             "issue_id": "C5",
-            "target_assumption_id": "A5",
-            "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
-            "evaluation_of_proposer": "The Proposer states the feature is advisory and encodes no protocol. This is reasonable, but the label alone does not address how the pick is used or whether ranking is permissible. This is likely beyond engineering to settle.",
+            "target_assumption_id": "A1",
+            "challenge_text": "Three contexts mapped onto existing Contact roles assume the roles are consistently populated and that multiple people can have the same role in a country. Across ~100 countries entered by different coordinators, role values are likely free-text or inconsistent, so 'role match to the context' silently falls through to engagement recency, which compounds C1. Also, falling back from Mission/Project to the general country context may surface a contact who is not cleared for that mission's subject, in effect recommending someone outside the mission's intended circle. Check role data quality before build, and fallback must not suggest contacts not affiliated with the mission without clear labelling and access checks.",
+            "evaluation_of_proposer": "A1 claims no new taxonomy is needed without evidence on role data consistency. The labelled fallback in S5 only covers display, not whether the fallback contact is appropriate for the mission.",
             "status": "CHALLENGED",
-            "confidence": 0.5
+            "confidence": 0.55
           }
         ],
         "ready_to_conclude": false,
-        "overall_confidence": 0.72
+        "overall_confidence": 0.68
       },
       "ledger_snapshot": {
         "C1": {
           "issue_id": "C1",
           "target_assumption_id": "A2",
-          "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
-          "proposer_last_move": "CHALLENGED",
-          "current_state": "CHALLENGED",
-          "proposer_confidence": 0.8,
-          "critic_confidence": 0.8,
-          "rounds_contested": 1,
-          "last_proposer_round": 0,
-          "last_critic_challenge_round": 1,
-          "accepted_fingerprint": null,
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED"
-          ]
-        },
-        "C2": {
-          "issue_id": "C2",
-          "target_assumption_id": "A4",
-          "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
-          "proposer_last_move": "CHALLENGED",
-          "current_state": "CHALLENGED",
-          "proposer_confidence": 0.8,
-          "critic_confidence": 0.75,
-          "rounds_contested": 1,
-          "last_proposer_round": 0,
-          "last_critic_challenge_round": 1,
-          "accepted_fingerprint": null,
-          "escalation_reason": null,
-          "history": [
-            "R1:Critic:CHALLENGED"
-          ]
-        },
-        "C3": {
-          "issue_id": "C3",
-          "target_assumption_id": "A6",
-          "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
+          "challenge_text": "Ranking by most recent Engagement date rewards whoever our staff happened to talk to, not who is authoritative. Example: a Regional Coordinator logs a call with a junior ministry desk officer last week, and that person outranks the Director-level Mission delegate last engaged 100 days ago. The card then tells staff to contact the wrong person on a sensitive mission. Recency is also gameable by incidental logging (mass email, event attendance). Rank role/affiliation match above recency and bound recency as a tiebreaker only, or show why-text that exposes the weak basis.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
@@ -231,14 +193,48 @@
             "R1:Critic:CHALLENGED"
           ]
         },
-        "C4": {
-          "issue_id": "C4",
-          "target_assumption_id": "A3",
-          "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
+        "C2": {
+          "issue_id": "C2",
+          "target_assumption_id": "A4",
+          "challenge_text": "Staleness depends on Contact records having a reliable active/term-end flag, which the Proposer only says 'already carry, or can derive'. In practice, when a minister is reshuffled or a ministry contact leaves, nobody updates the Contact record, and the contact stays flagged active. The card then confidently recommends the departed person as the top pick, and the 'may be outdated' badge only appears after 180 days of silence. A contact engaged 20 days ago by email, which bounced or was answered by a successor, shows no warning. 180 days is also wrong for dormant-but-valid relationships (annual-cycle ministries) and too long for fast-turnover posts. Verify the field exists and is populated, and make the 'last verified' or term-end data visible on the card, not only engagement recency.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
-          "critic_confidence": 0.65,
+          "critic_confidence": 0.72,
+          "rounds_contested": 1,
+          "last_proposer_round": 0,
+          "last_critic_challenge_round": 1,
+          "accepted_fingerprint": null,
+          "escalation_reason": null,
+          "history": [
+            "R1:Critic:CHALLENGED"
+          ]
+        },
+        "C3": {
+          "issue_id": "C3",
+          "target_assumption_id": "A3",
+          "challenge_text": "Inheriting the existing Country/Mission access model unchanged is not enough because the card aggregates across contexts and ranks. Scenarios: (1) a user with access to Country X but not to Mission M sees a fallback or ranking influenced by Mission-affiliated contacts or engagement history they cannot see, so the 'why' line ('Mission delegate, last engaged 12 days ago') leaks the existence of a restricted mission and the engagement timing of a restricted contact; (2) ranking is computed over all contacts and then filtered, so the absence or position of alternates reveals hidden ones; (3) 'last engaged N days ago' derives from Engagement records that may be more restricted than the Contact record. The 'why' text and the active Mission/Project lists must be computed only over records the viewer is authorized to see, and the success test must cover Engagement and Mission visibility, not just Contact fields.",
+          "proposer_last_move": "CHALLENGED",
+          "current_state": "CHALLENGED",
+          "proposer_confidence": 0.8,
+          "critic_confidence": 0.75,
+          "rounds_contested": 1,
+          "last_proposer_round": 0,
+          "last_critic_challenge_round": 1,
+          "accepted_fingerprint": null,
+          "escalation_reason": null,
+          "history": [
+            "R1:Critic:CHALLENGED"
+          ]
+        },
+        "C4": {
+          "issue_id": "C4",
+          "target_assumption_id": "A5",
+          "challenge_text": "A single authoritative-looking 'recommended contact' on a read-only card invites over-trust and copy-paste outreach, with no signal of confidence. Example: a coordinator new to a country (turnover is high) trusts the card and sends a sensitive message to a ministry contact who is the wrong level or has moved on, with no prompt to verify. Also, the 'may be outdated' badge shown on many contacts in low-engagement countries (most of 100 countries will be quiet most of the time) becomes wallpaper that staff ignore, which is the alert-fatigue case. Define behavior when the top pick is badged or when the top two candidates are close in score, such as showing a 'low confidence, verify before contact' state instead of a confident recommendation.",
+          "proposer_last_move": "CHALLENGED",
+          "current_state": "CHALLENGED",
+          "proposer_confidence": 0.8,
+          "critic_confidence": 0.6,
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
@@ -250,12 +246,12 @@
         },
         "C5": {
           "issue_id": "C5",
-          "target_assumption_id": "A5",
-          "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
+          "target_assumption_id": "A1",
+          "challenge_text": "Three contexts mapped onto existing Contact roles assume the roles are consistently populated and that multiple people can have the same role in a country. Across ~100 countries entered by different coordinators, role values are likely free-text or inconsistent, so 'role match to the context' silently falls through to engagement recency, which compounds C1. Also, falling back from Mission/Project to the general country context may surface a contact who is not cleared for that mission's subject, in effect recommending someone outside the mission's intended circle. Check role data quality before build, and fallback must not suggest contacts not affiliated with the mission without clear labelling and access checks.",
           "proposer_last_move": "CHALLENGED",
           "current_state": "CHALLENGED",
           "proposer_confidence": 0.8,
-          "critic_confidence": 0.5,
+          "critic_confidence": 0.55,
           "rounds_contested": 1,
           "last_proposer_round": 0,
           "last_critic_challenge_round": 1,
@@ -266,8 +262,8 @@
           ]
         }
       },
-      "rejected_references": [],
-      "disagreement_score": 0.87,
+      "validation_errors": [],
+      "disagreement_score": 0.866,
       "termination_reason": "ROUND_1_MINIMUM_LOCK",
       "should_stop": false
     },
@@ -276,134 +272,163 @@
       "proposer": {
         "proposed_scope_in": [
           {
-            "item": "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
+            "scope_id": "S1",
+            "item": "Read-only 'Who to contact' card on the existing Country page. It shows one recommended contact for each of three contexts (general country engagement, each active Mission, each active Project), plus up to 2 ranked alternates per context.",
             "assumption_ids": [
               "A1",
-              "A2"
-            ]
-          },
-          {
-            "item": "A one-line 'why' under each recommendation, built from existing fields and always showing the evidence it rests on: last-engaged date, the linked Project or Mission, and the contact record's existing system-maintained 'last updated' date (no new field, nothing entered by hand). A fixed caption states: 'Ranked by recent activity; does not confirm the person is currently in post.' The recommendation is labelled advisory.",
-            "assumption_ids": [
               "A2",
               "A5"
             ]
           },
           {
-            "item": "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
+            "scope_id": "S2",
+            "item": "Deterministic ranking computed at read time from existing data, with no manual designation. Order is strictly lexicographic: role match to the context, then affiliation to that Mission or Project, then most recent Engagement date as a tiebreaker only (it can never outrank a better role or affiliation match), then alphabetical. Each recommendation shows a one-line 'why' that names the deciding rule (e.g. 'Mission delegate, affiliated, last engaged 12 days ago' or 'No role match; ranked by recent engagement only').",
             "assumption_ids": [
               "A1",
               "A2"
             ]
           },
           {
-            "item": "A 'No engagement logged in 180 days' badge on any recommended contact with no logged Engagement in the last 180 days, shown next to the actual last-engaged date so users can judge it themselves. The threshold is a single global constant, not a per-country setting. Before release, one query on a production data snapshot measures the share of recommendations that would be badged, and the constant is adjusted globally if the badge fires on most recommendations.",
+            "scope_id": "S3",
+            "item": "Staleness handling: contacts flagged inactive or past term end are excluded from ranking. Each shown contact displays 'last engaged N days ago', plus the existing term-end date and the Contact record's last-updated date where those already exist on the record, and gets a 'may be outdated' badge if there has been no Engagement in 180 days (a fixed constant, not a per-country setting).",
+            "assumption_ids": [
+              "A2",
+              "A4"
+            ]
+          },
+          {
+            "scope_id": "S4",
+            "item": "The card reuses the existing Country/Mission access model with no new permission rules. The existing visibility filter is applied to Contacts, Missions, Projects and Engagements before ranking, so ranking, alternates, the 'why' line, 'last engaged' values, fallbacks and the Mission/Project lists are derived only from records the viewing user can already see.",
             "assumption_ids": [
               "A3"
             ]
           },
           {
-            "item": "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A 'No longer in post' action on the contact card sets that existing status after a confirmation dialog. Each status change records actor and timestamp (existing audit log if there is one, otherwise two auto-filled columns on Contact), and a 'Reinstate' action on the contact card restores the previous status. There is no approval workflow.",
+            "scope_id": "S5",
+            "item": "Empty and fallback states: if no eligible contact exists for a context, show 'No current contact on record' with a link to the Country's existing contact list. Fall back from the Mission or Project context to the general country context only with an explicit label ('Fallback: not affiliated with this Mission/Project, verify before contact').",
             "assumption_ids": [
-              "A6"
+              "A1",
+              "A2",
+              "A5"
             ]
           },
           {
-            "item": "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. The user's access filter is applied to the candidate set before ranking. The 'why' line (project names, mission names, engagement dates) and the backup contact are built only from records visible to the viewer. If a linked Project or Engagement is not visible, that element is omitted from the line. No new RBAC is added.",
-            "assumption_ids": [
-              "A4"
-            ]
-          },
-          {
-            "item": "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated.",
+            "scope_id": "S6",
+            "item": "One confidence label per context, from a fixed rule over existing data. The recommended contact is labelled 'Verify before contact' instead of 'Recommended' if it carries the 'may be outdated' badge, has no role match, is a fallback, or ties with the second candidate on role and affiliation. No score, no per-country setting, no queue.",
             "assumption_ids": [
               "A2",
-              "A1"
+              "A4",
+              "A5"
             ]
           }
         ],
         "proposed_scope_out": [
-          "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
-          "New tables or entities for routing rules, contact preferences or a topic taxonomy",
-          "Per-country or per-user configuration of staleness thresholds or ranking weights",
-          "Approval, review or verification workflows for contact changes",
-          "Alerts, notification queues, or dashboards of stale contacts or recent status changes across countries",
-          "ML or scoring models for contact ranking",
-          "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
-          "Automated verification of contact validity via email bounce, external directories or ministry feeds",
-          "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
-          "Bulk import or cleanup tooling for historical contact data",
-          "Ranking across role types or any single country-level 'best contact'. Each role type is recommended independently."
+          "Manual 'primary contact' designation or any extra fields Regional Coordinators must fill in",
+          "New tables or entities (reuses Country, Contact, Mission, Project, Engagement only), including any role-mapping or role-taxonomy table",
+          "ML or scoring models for contact recommendation",
+          "Approval, review, or verification workflows for recommendations",
+          "Cross-country dashboards, queues, or reports (e.g. 'countries with no contact')",
+          "Automated notifications, reminders, or outreach to confirm contact details, including bounce or successor detection from email",
+          "Protocol, seniority, or diplomatic-precedence ranking (a policy decision for humans, not product design)",
+          "Availability, time-zone, language, or preferred-channel handling",
+          "Escalation chains or formal backup-contact designation",
+          "Integrations with external directories or ministry data sources",
+          "Custom RBAC or new data-classification labels",
+          "Per-country or per-post staleness thresholds"
         ],
         "assumptions": [
           {
             "assumption_id": "A1",
-            "statement": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
-            "rationale": "Reusing existing role types avoids a new taxonomy and schema. It covers the most common 'who do I call' lookups without anyone maintaining a new list."
+            "statement": "'Right person' depends on context, and three contexts (general country engagement, active Mission, active Project) cover the main Operations and Country Engagement use cases. They map onto the existing Contact roles and Mission/Project affiliations without a new taxonomy.",
+            "rationale": "Reusing existing roles and affiliations means no schema change and no new data entry, and it keeps v1 to one view."
           },
           {
             "assumption_id": "A2",
-            "statement": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
-            "rationale": "Deriving the answer from data already captured gives zero extra data-entry friction for busy Regional Coordinators, and needs no schema change."
+            "statement": "A rules-based ranking over data the CRM already holds (role, affiliation, Engagement recency, active status) is accurate enough for v1. Coordinators will not designate primaries by hand.",
+            "rationale": "Deterministic rules are simple to build, test, and explain. Because engagement logging already happens, ranking stays current without extra effort from busy Regional Coordinators."
           },
           {
             "assumption_id": "A3",
-            "statement": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
-            "rationale": "One constant is cheap to build, test and explain. A per-country setting would need maintenance across ~100 countries and would rot."
+            "statement": "The existing Country/Mission access model already controls who may see which contacts and fields, and the new card can inherit it unchanged.",
+            "rationale": "This avoids building or auditing a new permission layer, and the card cannot expose anything the underlying records do not already expose."
           },
           {
             "assumption_id": "A4",
-            "statement": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
-            "rationale": "Inheriting existing permissions avoids building a new access model. It bounds the risk of exposing contacts to users who should not see them."
+            "statement": "Contact records already carry, or can derive, an active/inactive or term-end indicator, and Engagement records carry a contact and a date. A single fixed 180-day staleness threshold is a reasonable v1 default.",
+            "rationale": "A fixed constant avoids per-country settings that someone would have to maintain. It can be tuned later from pilot feedback."
           },
           {
             "assumption_id": "A5",
-            "statement": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
-            "rationale": "Protocol and precedence are diplomatic policy, outside product design. Staying advisory keeps the rule simple and transparent and avoids inventing policy."
-          },
-          {
-            "assumption_id": "A6",
-            "statement": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
-            "rationale": "Using an existing field with a one-click action adds no schema and no new workflow. The staleness badge covers contacts nobody has flagged."
+            "statement": "The users are existing Operations and Country Engagement staff who are already inside the CRM and look up contacts from a Country page. A read-only card in that spot meets the need, with no new navigation or tool.",
+            "rationale": "Placing the feature on a screen people already use means there is no new workflow to adopt and one small UI surface to build."
           }
         ],
         "success_criteria": [
           {
-            "criterion": "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
-            "assumption_ids": [
-              "A2"
+            "criterion": "For 100% of countries with at least one active contact, the card shows a recommended contact for the general context with zero manual data entry. The number of new required fields for Regional Coordinators is 0.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S5"
             ]
           },
           {
-            "criterion": "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
-            "assumption_ids": [
-              "A1",
-              "A2"
+            "criterion": "In a pilot review of 30 countries, spanning regions and with varied engagement history, Regional Coordinators judge the top recommendation correct or acceptable in at least 80% of cases.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S3"
             ]
           },
           {
-            "criterion": "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the badge, none with a more recent Engagement do, and every badge sits next to the actual last-engaged date. A pre-release query reports the badge rate on a real data snapshot, and the constant is reviewed before release if more than 50% of recommendations are badged.",
-            "assumption_ids": [
-              "A3"
+            "criterion": "In a test dataset, 100% of contacts with no Engagement in 180 days show the 'may be outdated' badge, and 100% of inactive or term-ended contacts are excluded from recommendations.",
+            "scope_item_ids": [
+              "S3"
             ]
           },
           {
-            "criterion": "In permission tests with users who have restricted access, 0 hidden contacts, countries, project or mission names, engagement dates or backup contacts appear in the panel, the 'why' line or filtered search. The recommendation shown to a restricted user equals the one computed over only their visible records.",
-            "assumption_ids": [
-              "A4"
+            "criterion": "Permission tests with at least 5 role/country-access combinations show 0 contacts or fields displayed in the card that the user cannot see on the underlying Contact or Country record.",
+            "scope_item_ids": [
+              "S4",
+              "S1"
             ]
           },
           {
-            "criterion": "100% of recommendations display a 'why' line, the caption that it does not confirm the person is in post, and an advisory label. 0 inactive or departed contacts are recommended in the test dataset.",
-            "assumption_ids": [
-              "A5",
-              "A6"
+            "criterion": "The card renders in under 1 second at p95 for the largest country by contact count, and shows the correct empty-state or fallback label in 100% of test cases with no eligible contact.",
+            "scope_item_ids": [
+              "S1",
+              "S2",
+              "S5"
             ]
           },
           {
-            "criterion": "In tests, 100% of 'No longer in post' changes require confirmation and record actor and timestamp, and 'Reinstate' restores the prior status and returns the contact to the ranking.",
-            "assumption_ids": [
-              "A6"
+            "criterion": "In a test dataset, a contact with a role match and affiliation outranks any contact without them in 100% of cases regardless of Engagement recency, and 100% of 'why' lines name the deciding rule.",
+            "scope_item_ids": [
+              "S2"
+            ]
+          },
+          {
+            "criterion": "Permission tests with at least 5 access combinations, including a user with Country access but no access to a given Mission and a user with Contact access but no access to its Engagements, show 0 hidden Missions, Engagements, contacts or derived values (rank position, alternates, 'why' text, 'last engaged' date, fallback) in the card, with output identical to the card computed over only the visible records.",
+            "scope_item_ids": [
+              "S4",
+              "S1",
+              "S2",
+              "S5"
+            ]
+          },
+          {
+            "criterion": "In a test dataset, 100% of recommended contacts that are badged, have no role match, are fallbacks, or tie on role and affiliation show 'Verify before contact'. In the 30-country pilot, the share of contexts showing it is reported, and a share above 50% triggers a review of the rule and the 180-day constant.",
+            "scope_item_ids": [
+              "S6",
+              "S3",
+              "S5"
+            ]
+          },
+          {
+            "criterion": "Before build, a read-only audit of the Contact role field across all ~100 countries reports the share of contacts with a populated, consistent role value. If it is below 80%, role match is dropped from the ranking order for the affected contexts and those contexts show the 'Verify before contact' label.",
+            "scope_item_ids": [
+              "S2",
+              "S6"
             ]
           }
         ],
@@ -411,95 +436,95 @@
           {
             "issue_id": "C1",
             "move": "REVISED",
-            "response": "The Critic is right that engagement recency measures relationship activity, not whether someone holds the post. A confirmed-in-post field would be a new data-entry burden for coordinators, so v1 takes the cheap fix: the 'why' line shows its evidence (last-engaged date, and the contact record's existing system-maintained last-updated date), plus a fixed caption that the ranking does not confirm the person is in post. This adds no table and no manual input, and the user sees how fresh the data is. A contact record's last-updated date moves on any edit, so it is only a rough proxy for confirmation. The 'farewell meeting' case remains a residual risk, bounded by the displayed dates, the caption and the 'No longer in post' action. If the pilot shows wrong-person recommendations after reshuffles, a later release can add a confirmed-in-post date. A2 itself remains unchanged and is not yet validated. The pre-release data snapshot (see C4) will show how often the top pick has stale records.",
-            "confidence": 0.72
+            "response": "Recency was already ranked below role and affiliation, but the scope did not state that it can never outrank them, and the why-text did not show the weak basis. Both fixes are cheap and use existing data. S2 now says recency is a tiebreaker only, the why-text names the deciding rule (e.g. 'No role match; ranked by recent engagement only'), and a test asserts that a role and affiliation match always beats recency. Whether a Director outranks a desk officer within the same role is a seniority or protocol decision. That is a policy question for humans, not product design, and it stays out of scope. If the role data cannot distinguish them, S6 shows 'Verify before contact' rather than a confident pick.",
+            "confidence": 0.75
           },
           {
             "issue_id": "C2",
             "move": "REVISED",
-            "response": "The risk is real, and the fix is cheap: it is a constraint on the query and the tests. The access filter is applied to the candidate set before ranking, so the ranking and the backup are computed only over what the viewer may see and cannot reveal a hidden contact. The 'why' line is built only from visible Project, Mission and Engagement records, and any element the viewer cannot see is omitted. The permission test now covers 'why' text, project and mission names, engagement dates and backup contacts. This is a query rule on existing data. It adds no new RBAC and no new tables. Which records are restricted and how is existing access-control and classification policy. I am not redefining that policy, only inheriting it consistently.",
-            "confidence": 0.82
+            "response": "Two cheap fixes. (1) S3 now shows the term-end date and the Contact record's last-updated date on the card where those already exist, so staff see data age as well as engagement recency. No new fields and no verification workflow are added. (2) S6 labels any badged or role-less top pick 'Verify before contact'. Whether the active/term-end field exists and is populated is checked in the pre-build audit; it is a build task, not scope. Not adopted: per-country or per-post thresholds, which are settings someone must maintain, and bounce or successor detection, which needs mail integration. The residual risk is a departed contact with no record update and a recent engagement. It is bounded by the visible record dates and by the fact that recommendations are read-only suggestions. Evidence for revisiting the 180-day constant is the pilot's share of 'Verify' states and coordinator feedback.",
+            "confidence": 0.7
           },
           {
             "issue_id": "C3",
             "move": "REVISED",
-            "response": "A mistaken one-click exclusion can silently drop the right contact, and the fix is cheap: a confirmation dialog, actor and timestamp on each status change (existing audit log if present, otherwise two auto-filled columns on Contact), and a 'Reinstate' action that restores the prior status on the existing field. None of this is an approval workflow, queue or dashboard. I am DEFENDING the other half of the critique, that nothing makes staff notice departures. A mechanism to push staff to flag departures would require alerts, queues or dashboards, which are expensive and deliberately out of scope. Residual risk is bounded by the visible last-engaged and last-updated dates, the badge, the caption and the audit trail. If the pilot shows departures going unflagged for long periods, a later release can add review prompts. Who may change a contact's status is access policy and belongs to the existing permissions model, not to this design.",
+            "response": "The Critic is right that derived values are a disclosure surface. The fix is cheap and adds no permission layer: S4 now applies the existing visibility filter before ranking. Alternates, 'why' text, 'last engaged' dates, Mission/Project lists and fallbacks are computed only over records the viewer can already see, so nothing is ranked and then hidden. A new test covers Mission and Engagement visibility and checks the output equals the card computed over visible records only. If Engagement records are in fact more restricted than Contact records, we inherit that existing rule. Whether any Engagement or Mission data needs a different classification is an institutional data-classification decision for a human, not something this design invents. If no existing Engagement visibility rule can be filtered at read time, that should be escalated.",
             "confidence": 0.75
           },
           {
             "issue_id": "C4",
             "move": "REVISED",
-            "response": "Both cheap parts of the fix are adopted: the actual last-engaged date is shown next to the badge, and the badge wording is changed to 'No engagement logged in 180 days', which states a fact rather than a verdict. Before release, one read-only query on a production snapshot measures the share of recommendations that would be badged, and the single global constant is adjusted if the badge would fire on most recommendations. That is a pre-release check and does not add a setting, a dashboard or a per-country threshold. The Critic's point that the badge cannot catch a recent departure with fresh engagement is accepted. The badge is not a departure detector, and the caption and 'No longer in post' action address that case. Per-country thresholds stay out of scope. The pre-release query will show whether that is justified later.",
-            "confidence": 0.75
+            "response": "A single deterministic rule over existing data is cheap and bounds the over-trust risk: S6 replaces 'Recommended' with 'Verify before contact' when the top pick is badged, has no role match, is a fallback, or ties with the second candidate. There is one label per context, not a badge on every row, and there are no scores, settings or queues. For alert fatigue, we measure rather than guess. The pilot reports the share of contexts showing 'Verify', and a share above 50% triggers a rule and threshold review. A dashboard or notifications to chase this are not added.",
+            "confidence": 0.7
           },
           {
             "issue_id": "C5",
-            "move": "DEFENDED",
-            "response": "The panel does not rank across role types. It recommends one contact per role type independently, so a project lead can never be promoted above the ministry contact. Both appear under their own role label in a fixed order. Within a role type the choice is made by the deterministic rule and shown with its 'why' line, a fixed advisory caption and a backup. These bound the risk that a coordinator reads the pick as the correct channel for every matter. A further interface change would be a cost with no demonstrated benefit. Whether the product may rank by role at all, or must list all active role holders without a 'recommended' designation, is an institutional policy question that I cannot answer, so it is routed to a human policy owner. If the policy owner rules against ranking, the fallback is a display-only change that lists all active holders by role, with no schema change. Evidence that would justify more interface change later: coordinator feedback or incident reports showing the pick being used as a protocol decision.",
-            "confidence": 0.6
+            "move": "REVISED",
+            "response": "Two cheap fixes. (1) Role data quality becomes a pre-build read-only audit with a threshold (80% populated and consistent). Below the threshold, role match is dropped for the affected contexts and the card shows 'Verify before contact'. No role-mapping table is built, because that is expensive. Several people with the same role are handled by the tie rule in S6. (2) S5 fallback now states 'not affiliated with this Mission/Project, verify before contact', and the fallback list passes through the same visibility filter as S4. Whether a general-country contact is appropriate for a mission's subject matter is a security-clearance and policy decision. This design does not make that decision, so a human should rule on it. Until then the fallback is only labelled, never presented as a confident recommendation.",
+            "confidence": 0.7
           }
         ],
-        "overall_confidence": 0.74
+        "overall_confidence": 0.72
       },
       "critic": {
         "challenges": [
           {
             "issue_id": "C1",
             "target_assumption_id": "A2",
-            "challenge_text": "After a ministerial reshuffle, the outgoing contact still has the freshest logged engagement and is still marked active, so the panel recommends the wrong person.",
-            "evaluation_of_proposer": "The Proposer now shows the evidence behind each pick (last-engaged date, system last-updated date) and a fixed caption that the ranking does not confirm the person is in post. It also keeps the 'No longer in post' action and states the residual farewell-meeting risk openly. A confirmed-in-post field would be a new data-entry burden, and the displayed evidence is a reasonable MVP bound. Acceptable for an MVP.",
+            "challenge_text": "Recency is now a tiebreaker only, and the why-line names the deciding rule.",
+            "evaluation_of_proposer": "The revision fixes the recency-over-authority risk. Recency cannot outrank role or affiliation, a test asserts this, and the weak basis is visible to the user. Seniority within a role is a protocol decision and the Proposer rightly leaves it out. S6 labels ties 'Verify before contact'. The residual risk is acceptable for an MVP.",
             "status": "ACCEPTED",
-            "confidence": 0.5
+            "confidence": 0.6
           },
           {
             "issue_id": "C2",
             "target_assumption_id": "A4",
-            "challenge_text": "The 'why' line and the backup contact could leak restricted mission, project, engagement or contact metadata to a user who lacks access to it.",
-            "evaluation_of_proposer": "The access filter is now applied before ranking, so the pick and the backup are computed only over visible records. The 'why' line omits any element the viewer cannot see. The permission test now covers 'why' text, project and mission names, engagement dates and backup contacts, and requires the restricted user's result to equal the one computed over visible records only. This closes the gap. The classification policy itself is inherited from existing access control.",
+            "challenge_text": "The remaining risk is a departed contact whose record was never updated and who has a recent engagement, so no badge appears.",
+            "evaluation_of_proposer": "The card now shows term-end and last-updated dates next to engagement recency. A pre-build audit checks that the active/term-end field exists and is populated. Role-less and badged picks get the 'Verify' label. Bounce detection and per-post thresholds are rightly out of scope. The residual risk is bounded by visible record dates and read-only suggestions. Acceptable for an MVP, and the 180-day constant is reviewed from pilot data.",
             "status": "ACCEPTED",
-            "confidence": 0.4
+            "confidence": 0.55
           },
           {
             "issue_id": "C3",
-            "target_assumption_id": "A6",
-            "challenge_text": "A single click on 'No longer in post' can wrongly drop the correct ministry contact. Conversely, nothing makes staff notice real departures.",
-            "evaluation_of_proposer": "The minimum fix I asked for is adopted: a confirmation dialog, actor and timestamp on each change, and a Reinstate action that restores the prior status. That removes the mistaken-click and trust risk. The Proposer defended against building a mechanism that pushes staff to flag departures, since that would need alerts or queues. For an MVP that is acceptable, and the residual risk is bounded by visible dates, the caption and the audit trail. Who may change a status belongs to the existing permissions policy.",
+            "target_assumption_id": "A3",
+            "challenge_text": "Hidden Mission and Engagement data could leak through rank position, alternates, the 'why' line, 'last engaged' values and fallbacks.",
+            "evaluation_of_proposer": "S4 now applies the visibility filter before ranking, so nothing is ranked and then hidden. The success criterion covers Mission and Engagement visibility. It requires output identical to the card computed over visible records only. This closes the specific leak. Whether Engagement or Mission data needs a different classification is an institutional data-classification decision. The Proposer correctly says to inherit the existing rule and escalate if it cannot be filtered at read time.",
             "status": "ACCEPTED",
-            "confidence": 0.45
+            "confidence": 0.6
           },
           {
             "issue_id": "C4",
-            "target_assumption_id": "A3",
-            "challenge_text": "A single global 180-day badge fires constantly in low-tempo countries and misses recent departures, so it becomes ignored noise.",
-            "evaluation_of_proposer": "The Proposer adopted both cheap fixes. The badge text is now a neutral fact ('No engagement logged in 180 days') shown next to the actual last-engaged date. A pre-release query on a production snapshot measures the badge rate, and the global constant is adjusted if the badge fires on most recommendations. The Proposer also concedes that the badge is not a departure detector. The remaining alert-fatigue risk is bounded for an MVP.",
+            "target_assumption_id": "A5",
+            "challenge_text": "A single confident recommendation invites over-trust, and a badge shown everywhere becomes wallpaper.",
+            "evaluation_of_proposer": "S6 gives one label per context, replacing 'Recommended' with 'Verify before contact' when the pick is badged, has no role match, is a fallback, or ties. That covers the low-confidence state I asked for. The pilot reports the share of 'Verify' states, and a share above 50% triggers a review. That is a measured guard against alert fatigue. The label is per context, not per row, which limits noise. Acceptable for an MVP.",
             "status": "ACCEPTED",
-            "confidence": 0.4
+            "confidence": 0.5
           },
           {
             "issue_id": "C5",
-            "target_assumption_id": "A5",
-            "challenge_text": "Coordinators will treat the single recommended contact as the correct channel for every matter, even where protocol requires a specific channel such as the foreign ministry.",
-            "evaluation_of_proposer": "The Proposer's structural mitigations are sound: one pick per role type with no cross-role ranking, an advisory label, a caption and a 'why' line. The remaining question is whether the product may designate a 'recommended' contact at all, or must list all active role holders. That depends on institutional diplomatic policy, which engineering cannot settle. The Proposer has also named a display-only fallback with no schema change if the policy owner rules against ranking. Routing this to a human policy owner is correct.",
+            "target_assumption_id": "A1",
+            "challenge_text": "Inconsistent role data pushes ranking into the recency fallback, and a general-country contact surfaced as a Mission fallback may not be cleared for that Mission's subject.",
+            "evaluation_of_proposer": "The role-quality problem is resolved by an engineering fix: a pre-build audit with an 80% threshold. Below the threshold, role match is dropped and the 'Verify' label is shown. Fallbacks are explicitly labelled and pass the S4 visibility filter. Whether a general-country contact may be suggested for a Mission's subject matter is a clearance and policy decision outside engineering. The Proposer already flags it for a human ruling, so it is escalated.",
             "status": "ESCALATED_TO_HUMAN",
-            "confidence": 0.55
+            "confidence": 0.5
           }
         ],
         "ready_to_conclude": true,
-        "overall_confidence": 0.45
+        "overall_confidence": 0.55
       },
       "ledger_snapshot": {
         "C1": {
           "issue_id": "C1",
           "target_assumption_id": "A2",
-          "challenge_text": "The rule ranks by 'most recent Engagement date' over existing data, so a contact who was merely emailed or met most recently outranks the actual current ministry contact. After a ministerial reshuffle, the departed minister's office or an outgoing contact often has the freshest logged engagement (farewell meetings, handover calls) and is still marked active, because nobody has flipped the status. The Regional Coordinator then sees a confident 'Last engaged 12 Jan' recommendation for the wrong person and sends a sensitive message to someone who no longer holds the post. Recency of engagement is a proxy for relationship activity, not for being currently in post. The panel needs to surface what the recommendation depends on, such as when the contact's status was last confirmed, rather than presenting data of unknown accuracy as the answer.",
+          "challenge_text": "Ranking by most recent Engagement date rewards whoever our staff happened to talk to, not who is authoritative. Example: a Regional Coordinator logs a call with a junior ministry desk officer last week, and that person outranks the Director-level Mission delegate last engaged 100 days ago. The card then tells staff to contact the wrong person on a sensitive mission. Recency is also gameable by incidental logging (mass email, event attendance). Rank role/affiliation match above recency and bound recency as a tiebreaker only, or show why-text that exposes the weak basis.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
-          "proposer_confidence": 0.72,
-          "critic_confidence": 0.5,
+          "proposer_confidence": 0.75,
+          "critic_confidence": 0.6,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_fingerprint": "827bfb3475a154a1",
+          "accepted_fingerprint": "eadec04c86c716b1",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -510,15 +535,15 @@
         "C2": {
           "issue_id": "C2",
           "target_assumption_id": "A4",
-          "challenge_text": "The panel is a new aggregation surface that pulls Contact, Engagement, Mission and Project links, and a computed 'why' line is built from engagement and project fields. Existing Country/Mission permissions may gate contact records, but not necessarily the joined data. Example: a staff member with access to Country X sees 'lead on Project Y; last engaged 12 Jan' where Project Y or the engagement note belongs to a mission they cannot access. The 'why' line leaks restricted mission or engagement metadata, and the backup contact leaks a contact who is hidden from that user. The permission test criterion only checks that contacts and countries do not appear. It does not check the 'why' text, project names, engagement dates or backup contact. The read-time query must also apply the user's access filter before ranking, not after, or the ranking changes by viewer and can silently reveal a hidden contact's existence.",
+          "challenge_text": "Staleness depends on Contact records having a reliable active/term-end flag, which the Proposer only says 'already carry, or can derive'. In practice, when a minister is reshuffled or a ministry contact leaves, nobody updates the Contact record, and the contact stays flagged active. The card then confidently recommends the departed person as the top pick, and the 'may be outdated' badge only appears after 180 days of silence. A contact engaged 20 days ago by email, which bounced or was answered by a successor, shows no warning. 180 days is also wrong for dormant-but-valid relationships (annual-cycle ministries) and too long for fast-turnover posts. Verify the field exists and is populated, and make the 'last verified' or term-end data visible on the card, not only engagement recency.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
-          "proposer_confidence": 0.82,
-          "critic_confidence": 0.4,
+          "proposer_confidence": 0.7,
+          "critic_confidence": 0.55,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_fingerprint": "2356aa114d04b5e3",
+          "accepted_fingerprint": "257ebe65517e4f18",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -528,16 +553,16 @@
         },
         "C3": {
           "issue_id": "C3",
-          "target_assumption_id": "A6",
-          "challenge_text": "The one-click 'No longer in post' action sets the existing status, with no approval step and no audit stated. Any user with edit access can erroneously or maliciously mark the correct ministry contact as departed in a single click, instantly removing them from recommendations and promoting the backup to primary. There is no confirmation, undo or record of who changed it and when. Departures are also reported secondhand, so a mistaken click is easy. Conversely, the model depends on 'staff who notice it', and the proposal has no mechanism to make that happen at the volume of 100 countries with frequent turnover. The result is a stale-status problem and a trust problem that both feed the wrong-contact risk. Minimum fix: a confirmation step, an actor and timestamp audit trail, and a simple reversal.",
+          "target_assumption_id": "A3",
+          "challenge_text": "Inheriting the existing Country/Mission access model unchanged is not enough because the card aggregates across contexts and ranks. Scenarios: (1) a user with access to Country X but not to Mission M sees a fallback or ranking influenced by Mission-affiliated contacts or engagement history they cannot see, so the 'why' line ('Mission delegate, last engaged 12 days ago') leaks the existence of a restricted mission and the engagement timing of a restricted contact; (2) ranking is computed over all contacts and then filtered, so the absence or position of alternates reveals hidden ones; (3) 'last engaged N days ago' derives from Engagement records that may be more restricted than the Contact record. The 'why' text and the active Mission/Project lists must be computed only over records the viewer is authorized to see, and the success test must cover Engagement and Mission visibility, not just Contact fields.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
           "proposer_confidence": 0.75,
-          "critic_confidence": 0.45,
+          "critic_confidence": 0.6,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_fingerprint": "9940ab0406c96482",
+          "accepted_fingerprint": "ea093600d6ffefa9",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -547,16 +572,16 @@
         },
         "C4": {
           "issue_id": "C4",
-          "target_assumption_id": "A3",
-          "challenge_text": "The single global 180-day badge will misfire in both directions. In low-tempo countries where engagement is legitimately once or twice a year, nearly every recommended contact shows 'may be outdated', so coordinators learn to ignore the badge. Meanwhile, a contact who left 20 days ago but was in a recent farewell meeting shows no badge. Because the badge fires for most low-engagement countries and misses the highest-risk transitions, it will quickly become noise and add false confidence. It is also unclear whether Engagement logging is consistent enough for 180 days to be meaningful. The MVP should at minimum measure the badge rate on real data before fixing the constant, and show the actual last-engaged date next to the badge so users can judge it themselves.",
+          "target_assumption_id": "A5",
+          "challenge_text": "A single authoritative-looking 'recommended contact' on a read-only card invites over-trust and copy-paste outreach, with no signal of confidence. Example: a coordinator new to a country (turnover is high) trusts the card and sends a sensitive message to a ministry contact who is the wrong level or has moved on, with no prompt to verify. Also, the 'may be outdated' badge shown on many contacts in low-engagement countries (most of 100 countries will be quiet most of the time) becomes wallpaper that staff ignore, which is the alert-fatigue case. Define behavior when the top pick is badged or when the top two candidates are close in score, such as showing a 'low confidence, verify before contact' state instead of a confident recommendation.",
           "proposer_last_move": "REVISED",
           "current_state": "ACCEPTED",
-          "proposer_confidence": 0.75,
-          "critic_confidence": 0.4,
+          "proposer_confidence": 0.7,
+          "critic_confidence": 0.5,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
-          "accepted_fingerprint": "defe27bbc5f8d9b0",
+          "accepted_fingerprint": "9789900b0599804b",
           "escalation_reason": null,
           "history": [
             "R1:Critic:CHALLENGED",
@@ -566,12 +591,12 @@
         },
         "C5": {
           "issue_id": "C5",
-          "target_assumption_id": "A5",
-          "challenge_text": "A single top recommendation with a backup labelled 'advisory' will be treated as the answer by busy coordinators. In practice, the sensitive case is a country where protocol requires a specific channel, such as the foreign ministry rather than a project lead. The rule could pick a project lead who has the freshest engagement and promote them above the ministry contact for outreach on a political matter. The proposal rightly keeps protocol out of scope, but it does not say how the interface avoids implying that the pick is the correct channel for every matter. Whether the product may rank by role at all, or must display all active role holders without a single pick, is an institutional policy decision.",
-          "proposer_last_move": "DEFENDED",
+          "target_assumption_id": "A1",
+          "challenge_text": "Three contexts mapped onto existing Contact roles assume the roles are consistently populated and that multiple people can have the same role in a country. Across ~100 countries entered by different coordinators, role values are likely free-text or inconsistent, so 'role match to the context' silently falls through to engagement recency, which compounds C1. Also, falling back from Mission/Project to the general country context may surface a contact who is not cleared for that mission's subject, in effect recommending someone outside the mission's intended circle. Check role data quality before build, and fallback must not suggest contacts not affiliated with the mission without clear labelling and access checks.",
+          "proposer_last_move": "REVISED",
           "current_state": "ESCALATED_TO_HUMAN",
-          "proposer_confidence": 0.6,
-          "critic_confidence": 0.55,
+          "proposer_confidence": 0.7,
+          "critic_confidence": 0.5,
           "rounds_contested": 1,
           "last_proposer_round": 2,
           "last_critic_challenge_round": 1,
@@ -579,12 +604,12 @@
           "escalation_reason": "POLICY_ESCALATED_BY_CRITIC",
           "history": [
             "R1:Critic:CHALLENGED",
-            "R2:Proposer:DEFENDED",
+            "R2:Proposer:REVISED",
             "R2:Critic:ESCALATED_TO_HUMAN"
           ]
         }
       },
-      "rejected_references": [],
+      "validation_errors": [],
       "disagreement_score": 0.0,
       "termination_reason": "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)",
       "should_stop": true
@@ -592,46 +617,94 @@
   ],
   "final_decision": {
     "feature_request": "We need a better way to track who is the right person to contact in each country.",
-    "executive_summary": "v1 adds a 'Who to contact' panel on each country page that recommends one primary and one backup contact per existing role type, chosen by a deterministic rule over existing data, with no new tables and no manual input. It also adds a 'No engagement logged in 180 days' badge shown next to the actual last-engaged date, a confirmed and audited 'No longer in post' action with 'Reinstate', and access filtering applied before ranking. The main trade-off argued was how far a recency-based, automatically derived pick can be trusted without implying that the person is in post or is the correct diplomatic channel. The one-line 'why' evidence, its caption and the advisory label, along with the related success criterion, are pending a human decision on C5. That decision is whether the product may designate a recommended contact by role at all or must list all active role holders.",
+    "executive_summary": "v1 is a read-only 'Who to contact' card on the Country page. It ranks contacts at read time from existing data (role match, then affiliation, then engagement recency as a tiebreaker only) and applies the existing visibility filter before ranking. The agreed parts of v1 are staleness handling (S3), reuse of the existing access model (S4), and a single 'Verify before contact' confidence label (S6). The main trade-off argued was recency against authority and data quality: the Critic pushed for recency to be a tiebreaker only, for data age to be visible, for visibility filtering before ranking, and for a low-confidence state, and the Proposer adopted cheap rule-based fixes without adding settings, tables, or workflows. The card itself (S1), the ranking (S2), and the empty/fallback states (S5) are pending a human decision on C5, as are the success criteria that measure them. C5 asks whether a general-country contact may be suggested as a fallback for a Mission's subject, and whether role data quality is sufficient.",
     "agreed_scope_included": [
-      "Country page 'Who to contact' panel. For each existing contact role type (country representative, ministry contact, project lead, mission delegate) it shows one recommended contact, chosen by a deterministic rule over existing data: status is active, linked to an active Mission or Project in that country, most recent Engagement date, with a fixed tie-break on the lowest contact ID.",
-      "A backup contact: the second-ranked contact under the same rule, shown beneath the primary for each role type.",
-      "A 'No engagement logged in 180 days' badge on any recommended contact with no logged Engagement in the last 180 days, shown next to the actual last-engaged date so users can judge it themselves. The threshold is a single global constant, not a per-country setting. Before release, one query on a production data snapshot measures the share of recommendations that would be badged, and the constant is adjusted globally if the badge fires on most recommendations.",
-      "Contacts whose existing status field is inactive, departed or similar are excluded from recommendations. A 'No longer in post' action on the contact card sets that existing status after a confirmation dialog. Each status change records actor and timestamp (existing audit log if there is one, otherwise two auto-filled columns on Contact), and a 'Reinstate' action on the contact card restores the previous status. There is no approval workflow.",
-      "The panel and any country/role filter in existing contact search return only the countries and contacts the user can already access under the existing Country/Mission permissions. The user's access filter is applied to the candidate set before ranking. The 'why' line (project names, mission names, engagement dates) and the backup contact are built only from records visible to the viewer. If a linked Project or Engagement is not visible, that element is omitted from the line. No new RBAC is added.",
-      "The 'right person' recommendation is computed at read time by a query over Contact, Engagement, Mission and Project links. No new tables are created and nothing is manually designated."
+      "[S3] Staleness handling: contacts flagged inactive or past term end are excluded from ranking. Each shown contact displays 'last engaged N days ago', plus the existing term-end date and the Contact record's last-updated date where those already exist on the record, and gets a 'may be outdated' badge if there has been no Engagement in 180 days (a fixed constant, not a per-country setting).",
+      "[S4] The card reuses the existing Country/Mission access model with no new permission rules. The existing visibility filter is applied to Contacts, Missions, Projects and Engagements before ranking, so ranking, alternates, the 'why' line, 'last engaged' values, fallbacks and the Mission/Project lists are derived only from records the viewing user can already see.",
+      "[S6] One confidence label per context, from a fixed rule over existing data. The recommended contact is labelled 'Verify before contact' instead of 'Recommended' if it carries the 'may be outdated' badge, has no role match, is a fallback, or ties with the second candidate on role and affiliation. No score, no per-country setting, no queue."
     ],
     "scope_pending_human_decision": [
       {
-        "item": "A one-line 'why' under each recommendation, built from existing fields and always showing the evidence it rests on: last-engaged date, the linked Project or Mission, and the contact record's existing system-maintained 'last updated' date (no new field, nothing entered by hand). A fixed caption states: 'Ranked by recent activity; does not confirm the person is currently in post.' The recommendation is labelled advisory.",
+        "item": "[S1] Read-only 'Who to contact' card on the existing Country page. It shows one recommended contact for each of three contexts (general country engagement, each active Mission, each active Project), plus up to 2 ranked alternates per context.",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "[S2] Deterministic ranking computed at read time from existing data, with no manual designation. Order is strictly lexicographic: role match to the context, then affiliation to that Mission or Project, then most recent Engagement date as a tiebreaker only (it can never outrank a better role or affiliation match), then alphabetical. Each recommendation shows a one-line 'why' that names the deciding rule (e.g. 'Mission delegate, affiliated, last engaged 12 days ago' or 'No role match; ranked by recent engagement only').",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "[S5] Empty and fallback states: if no eligible contact exists for a context, show 'No current contact on record' with a link to the Country's existing contact list. Fall back from the Mission or Project context to the general country context only with an explicit label ('Fallback: not affiliated with this Mission/Project, verify before contact').",
         "blocked_by": [
           "C5"
         ]
       }
     ],
     "agreed_scope_excluded": [
-      "Manual designation of a 'primary contact' per country, and any other new data-entry field for Regional Coordinators",
-      "New tables or entities for routing rules, contact preferences or a topic taxonomy",
-      "Per-country or per-user configuration of staleness thresholds or ranking weights",
-      "Approval, review or verification workflows for contact changes",
-      "Alerts, notification queues, or dashboards of stale contacts or recent status changes across countries",
-      "ML or scoring models for contact ranking",
-      "Encoding diplomatic protocol, precedence or the proper channel for a given topic. These are policy decisions for humans and are not product design.",
-      "Automated verification of contact validity via email bounce, external directories or ministry feeds",
-      "Custom RBAC or classification-based visibility rules beyond the existing Country/Mission access model",
-      "Bulk import or cleanup tooling for historical contact data",
-      "Ranking across role types or any single country-level 'best contact'. Each role type is recommended independently."
+      "Manual 'primary contact' designation or any extra fields Regional Coordinators must fill in",
+      "New tables or entities (reuses Country, Contact, Mission, Project, Engagement only), including any role-mapping or role-taxonomy table",
+      "ML or scoring models for contact recommendation",
+      "Approval, review, or verification workflows for recommendations",
+      "Cross-country dashboards, queues, or reports (e.g. 'countries with no contact')",
+      "Automated notifications, reminders, or outreach to confirm contact details, including bounce or successor detection from email",
+      "Protocol, seniority, or diplomatic-precedence ranking (a policy decision for humans, not product design)",
+      "Availability, time-zone, language, or preferred-channel handling",
+      "Escalation chains or formal backup-contact designation",
+      "Integrations with external directories or ministry data sources",
+      "Custom RBAC or new data-classification labels",
+      "Per-country or per-post staleness thresholds"
     ],
     "success_criteria": [
-      "For at least 90% of countries with one or more active contacts, the panel shows a recommended contact with zero manual input from Regional Coordinators and no new required fields.",
-      "In a usability test with 5 Operations or Country Engagement staff, each finds the recommended contact for a named country and role in under 30 seconds.",
-      "On a seeded test dataset, 100% of recommended contacts with no Engagement in over 180 days show the badge, none with a more recent Engagement do, and every badge sits next to the actual last-engaged date. A pre-release query reports the badge rate on a real data snapshot, and the constant is reviewed before release if more than 50% of recommendations are badged.",
-      "In permission tests with users who have restricted access, 0 hidden contacts, countries, project or mission names, engagement dates or backup contacts appear in the panel, the 'why' line or filtered search. The recommendation shown to a restricted user equals the one computed over only their visible records.",
-      "In tests, 100% of 'No longer in post' changes require confirmation and record actor and timestamp, and 'Reinstate' restores the prior status and returns the contact to the ranking."
+      "In a test dataset, 100% of contacts with no Engagement in 180 days show the 'may be outdated' badge, and 100% of inactive or term-ended contacts are excluded from recommendations. (measures S3)"
     ],
     "success_criteria_pending": [
       {
-        "item": "100% of recommendations display a 'why' line, the caption that it does not confirm the person is in post, and an advisory label. 0 inactive or departed contacts are recommended in the test dataset.",
+        "item": "For 100% of countries with at least one active contact, the card shows a recommended contact for the general context with zero manual data entry. The number of new required fields for Regional Coordinators is 0. (measures S1, S2, S5)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "In a pilot review of 30 countries, spanning regions and with varied engagement history, Regional Coordinators judge the top recommendation correct or acceptable in at least 80% of cases. (measures S1, S2, S3)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "Permission tests with at least 5 role/country-access combinations show 0 contacts or fields displayed in the card that the user cannot see on the underlying Contact or Country record. (measures S4, S1)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "The card renders in under 1 second at p95 for the largest country by contact count, and shows the correct empty-state or fallback label in 100% of test cases with no eligible contact. (measures S1, S2, S5)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "In a test dataset, a contact with a role match and affiliation outranks any contact without them in 100% of cases regardless of Engagement recency, and 100% of 'why' lines name the deciding rule. (measures S2)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "Permission tests with at least 5 access combinations, including a user with Country access but no access to a given Mission and a user with Contact access but no access to its Engagements, show 0 hidden Missions, Engagements, contacts or derived values (rank position, alternates, 'why' text, 'last engaged' date, fallback) in the card, with output identical to the card computed over only the visible records. (measures S4, S1, S2, S5)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "In a test dataset, 100% of recommended contacts that are badged, have no role match, are fallbacks, or tie on role and affiliation show 'Verify before contact'. In the 30-country pilot, the share of contexts showing it is reported, and a share above 50% triggers a review of the rule and the 180-day constant. (measures S6, S3, S5)",
+        "blocked_by": [
+          "C5"
+        ]
+      },
+      {
+        "item": "Before build, a read-only audit of the Contact role field across all ~100 countries reports the share of contacts with a populated, consistent role value. If it is below 80%, role match is dropped from the ranking order for the affected contexts and those contexts show the 'Verify before contact' label. (measures S2, S6)",
         "blocked_by": [
           "C5"
         ]
@@ -640,57 +713,50 @@
     "surfaced_assumptions": [
       {
         "assumption_id": "A1",
-        "assumption": "'Right person' means the right contact by role in a given country. v1 uses the four existing contact role types as the only purpose key, not a new topic or purpose taxonomy.",
-        "was_challenged": false,
-        "final_disposition": "ACCEPTED",
-        "resolution_notes": "Not challenged; accepted as written, with the four existing role types as the only purpose key."
+        "assumption": "'Right person' depends on context, and three contexts (general country engagement, active Mission, active Project) cover the main Operations and Country Engagement use cases. They map onto the existing Contact roles and Mission/Project affiliations without a new taxonomy.",
+        "was_challenged": true,
+        "final_disposition": "ESCALATED_TO_HUMAN",
+        "resolution_notes": "C5 challenged whether existing roles map cleanly onto the three contexts and whether a general-country fallback is appropriate for a Mission. The Proposer added a pre-build role audit and a labelled fallback, and the Critic escalated the clearance/policy part to a human, so C5 ended ESCALATED_TO_HUMAN."
       },
       {
         "assumption_id": "A2",
-        "assumption": "Existing data (contact status, engagement history, project affiliations, active missions) is accurate enough to derive a useful recommendation automatically. The Coordinators' own manual input is not required.",
+        "assumption": "A rules-based ranking over data the CRM already holds (role, affiliation, Engagement recency, active status) is accurate enough for v1. Coordinators will not designate primaries by hand.",
         "was_challenged": true,
         "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C1 challenged that engagement recency does not show a person is in post; the Proposer revised the design to show evidence dates and a caption, and the Critic accepted it for an MVP."
+        "resolution_notes": "C1 challenged ranking by recent engagement. The Proposer revised so recency is a tiebreaker only and the 'why' line names the deciding rule, and the Critic accepted."
       },
       {
         "assumption_id": "A3",
-        "assumption": "A single global 180-day no-engagement threshold is an acceptable proxy for a possibly outdated contact. It is a hardcoded constant, not a per-country setting.",
+        "assumption": "The existing Country/Mission access model already controls who may see which contacts and fields, and the new card can inherit it unchanged.",
         "was_challenged": true,
         "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C4 challenged the single global 180-day badge as noisy; the Proposer revised it to a factual label shown beside the last-engaged date plus a pre-release badge-rate query, and the Critic accepted."
+        "resolution_notes": "C3 challenged leakage of hidden Mission and Engagement data through derived values. The Proposer revised S4 to filter by visibility before ranking and extended the permission tests, and the Critic accepted."
       },
       {
         "assumption_id": "A4",
-        "assumption": "Users of the feature are internal Operations and Country Engagement staff, and existing Country/Mission access controls already determine which contacts each user may see.",
+        "assumption": "Contact records already carry, or can derive, an active/inactive or term-end indicator, and Engagement records carry a contact and a date. A single fixed 180-day staleness threshold is a reasonable v1 default.",
         "was_challenged": true,
         "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C2 raised leakage of restricted data through the 'why' line and backup contact; the Proposer revised so access filtering happens before ranking and permission tests are broadened, and the Critic accepted."
+        "resolution_notes": "C2 challenged reliance on an unverified active/term-end field and a fixed 180-day threshold. The Proposer revised S3 to show term-end and last-updated dates and added the 'Verify before contact' label and a pre-build audit, and the Critic accepted with residual risk noted."
       },
       {
         "assumption_id": "A5",
-        "assumption": "The recommendation is advisory decision support. Who is the diplomatically appropriate channel for a given matter remains a human judgment, and the feature encodes no protocol or policy.",
-        "was_challenged": true,
-        "final_disposition": "ESCALATED_TO_HUMAN",
-        "resolution_notes": "C5 questioned whether a single recommended pick implies the correct channel; the Proposer defended its structural mitigations and the Critic escalated to a human as a policy question, so it remains open."
-      },
-      {
-        "assumption_id": "A6",
-        "assumption": "Contacts who leave their post are marked through the existing contact status field by staff who notice it, and no external verification feed is available in v1.",
+        "assumption": "The users are existing Operations and Country Engagement staff who are already inside the CRM and look up contacts from a Country page. A read-only card in that spot meets the need, with no new navigation or tool.",
         "was_challenged": true,
         "final_disposition": "REVISED_AND_ACCEPTED",
-        "resolution_notes": "C3 challenged the one-click status change; the Proposer added confirmation, actor and timestamp recording and a Reinstate action, and the Critic accepted, with no mechanism to push staff to flag departures."
+        "resolution_notes": "C4 challenged over-trust in a single confident recommendation and badge fatigue. The Proposer revised by adding one 'Verify before contact' label per context (S6) and a pilot measure of how often it appears, and the Critic accepted."
       }
     ],
     "open_questions_for_humans": [
       {
         "issue_id": "C5",
-        "decision_owner": "Head of Diplomatic Protocol or equivalent policy owner (product owner to route)",
-        "question": "Engineering cannot settle this policy question: may the product designate a single 'recommended' contact per role type, labelled advisory, or must it list all active role holders for a country without a recommended pick? The concern is that coordinators will treat the pick as the correct channel for every matter, including where protocol requires a specific channel such as the foreign ministry. The answer decides whether the 'why' line, caption and advisory label ship as proposed or the panel falls back to a display-only list of all active holders by role, which needs no schema change."
+        "decision_owner": "Unassigned: product owner to route (likely Head of Diplomatic Security or Legal for the clearance question)",
+        "question": "Is it acceptable for the card to suggest a general-country contact as a labelled fallback ('Fallback: not affiliated with this Mission/Project, verify before contact') for a Mission or Project whose subject that contact may not be cleared for? Engineering cannot make this clearance and policy decision. Until it is made, S1, S2, S5 and their success criteria stay pending. Should the pre-build role-data audit (80% populated and consistent threshold) also proceed on this basis?"
       }
     ],
     "final_disagreement_score": 0.0,
-    "proposer_confidence": 0.74,
-    "critic_confidence": 0.45,
+    "proposer_confidence": 0.72,
+    "critic_confidence": 0.55,
     "termination_reason": "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)"
   },
   "summary_corrections": []
