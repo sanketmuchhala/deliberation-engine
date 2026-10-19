@@ -1,5 +1,6 @@
 """Offline tests for the deliberation state machine: scripted agent turns, no API calls."""
 import unittest
+from unittest import mock
 
 from src.engine import DeliberationEngine
 from src.schemas import CriticTurn, ProposerTurn, SummarizerDraft
@@ -7,12 +8,20 @@ from src.schemas import CriticTurn, ProposerTurn, SummarizerDraft
 CONVERGED = "CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNALED_CONVERGENCE)"
 
 
-def proposer(*moves, a1="s", x="x", w="w", x_ids=("A1",)):
+def proposer(*moves, a1="s", x="x", w="w", x_ids=("A1",), z_scope=("S1",), a3_id="A3"):
     return ProposerTurn(
-        proposed_scope_in=[{"item": x, "assumption_ids": list(x_ids)}, {"item": w, "assumption_ids": ["A2"]}],
+        proposed_scope_in=[
+            {"scope_id": "S1", "item": x, "assumption_ids": list(x_ids)},
+            {"scope_id": "S2", "item": w, "assumption_ids": ["A2"]},
+        ],
         proposed_scope_out=["y"],
-        assumptions=[{"assumption_id": f"A{i}", "statement": a1 if i == 1 else "s", "rationale": "r"} for i in (1, 2, 3)],
-        success_criteria=[{"criterion": "z", "assumption_ids": ["A1"]}, {"criterion": "v", "assumption_ids": ["A2"]}],
+        assumptions=[
+            {"assumption_id": aid, "statement": a1 if aid == "A1" else "s", "rationale": "r"} for aid in ("A1", "A2", a3_id)
+        ],
+        success_criteria=[
+            {"criterion": "z", "scope_item_ids": list(z_scope)},
+            {"criterion": "v", "scope_item_ids": ["S2"]},
+        ],
         overall_confidence=0.7,
         challenge_responses=[{"issue_id": i, "move": m, "response": "r", "confidence": 0.8} for i, m in moves],
     )
@@ -152,7 +161,7 @@ class DeliberationStateMachineTest(unittest.TestCase):
             critic(("C1", "ACCEPTED"), ("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True),
         )
         self.assertEqual(trace["rounds"][-1]["termination_reason"], CONVERGED)
-        rejected = trace["rounds"][1]["rejected_references"]
+        rejected = trace["rounds"][1]["validation_errors"]
         self.assertEqual(len(rejected), 2)
         self.assertIn("references unknown A9", rejected[0])
         self.assertIn("New issue C4 targets unknown A9", rejected[1])
@@ -161,8 +170,34 @@ class DeliberationStateMachineTest(unittest.TestCase):
         engine = DeliberationEngine()
         replies = iter([*ROUND_1, proposer(x_ids=()), proposer(x_ids=())])
         engine._call_structured = lambda *args, **kwargs: next(replies)
-        with self.assertRaisesRegex(ValueError, "lists no assumption_ids"):
+        with self.assertRaisesRegex(ValueError, "lists no references"):
             engine.run("test request")
+
+    def test_duplicate_and_dangling_ids_are_rejected_before_they_touch_the_ledger(self):
+        trace = self.run_script(
+            proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED"), a3_id="A2", z_scope=("S9",)),
+            proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED")),
+            critic(("C1", "ACCEPTED"), ("C2", "CHALLENGED"), ("C2", "CHALLENGED"), ("C3", "ACCEPTED")),
+            critic(("C1", "ACCEPTED"), ("C2", "CHALLENGED"), ("C3", "ACCEPTED")),
+            proposer(("C2", "REVISED")),
+            critic(("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True),
+        )
+        rejected = trace["rounds"][1]["validation_errors"]
+        self.assertEqual(len(rejected), 3)
+        self.assertIn("Duplicate assumption IDs: A2", rejected[0])
+        self.assertIn("Success criterion 'z' references unknown S9", rejected[1])
+        self.assertIn("Duplicate issue IDs: C2", rejected[2])
+        self.assertEqual(trace["rounds"][1]["ledger_snapshot"]["C2"]["rounds_contested"], 2)
+
+    def test_challenge_count_rises_once_per_round_even_if_a_duplicate_slips_through(self):
+        with mock.patch("src.engine.critic_turn_errors", return_value=[]):
+            trace = self.run_script(
+                proposer(("C1", "DEFENDED"), ("C2", "DEFENDED"), ("C3", "DEFENDED")),
+                critic(("C1", "ACCEPTED"), ("C2", "CHALLENGED"), ("C2", "CHALLENGED"), ("C3", "ACCEPTED")),
+                proposer(("C2", "REVISED")),
+                critic(("C2", "ACCEPTED"), ("C3", "ACCEPTED"), ready=True),
+            )
+        self.assertEqual(trace["rounds"][1]["ledger_snapshot"]["C2"]["rounds_contested"], 2)
 
     def test_concession_omitted_by_critic_is_accepted(self):
         trace = self.run_script(
@@ -250,10 +285,10 @@ class DeliberationStateMachineTest(unittest.TestCase):
             summary=draft,
         )
         doc = trace["final_decision"]
-        self.assertEqual(doc["agreed_scope_included"], ["w"])
-        self.assertEqual(doc["scope_pending_human_decision"], [{"item": "x", "blocked_by": ["C2", "C3"]}])
-        self.assertEqual(doc["success_criteria"], ["v"])
-        self.assertEqual(doc["success_criteria_pending"], [{"item": "z", "blocked_by": ["C2", "C3"]}])
+        self.assertEqual(doc["agreed_scope_included"], ["[S2] w"])
+        self.assertEqual(doc["scope_pending_human_decision"], [{"item": "[S1] x", "blocked_by": ["C2", "C3"]}])
+        self.assertEqual(doc["success_criteria"], ["v (measures S2)"])
+        self.assertEqual(doc["success_criteria_pending"], [{"item": "z (measures S1)", "blocked_by": ["C2", "C3"]}])
         questions = {q["issue_id"]: q for q in doc["open_questions_for_humans"]}
         self.assertEqual(list(questions), ["C2", "C3"])
         self.assertEqual(questions["C3"]["decision_owner"], "Legal")

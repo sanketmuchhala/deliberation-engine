@@ -44,6 +44,7 @@ class AssumptionItem(BaseModel):
 
 class ScopeItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    scope_id: str = Field(description="Unique within the turn, e.g., S1")
     item: str = Field(description="One in-scope capability or rule")
     assumption_ids: list[str] = Field(description="Assumption IDs this item relies on (at least one), e.g., [\"A2\"]")
 
@@ -51,7 +52,7 @@ class ScopeItem(BaseModel):
 class SuccessCriterion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     criterion: str = Field(description="A measurable success criterion")
-    assumption_ids: list[str] = Field(description="Assumption IDs this criterion relies on (at least one)")
+    scope_item_ids: list[str] = Field(description="In-scope item IDs this criterion measures (at least one), e.g., [\"S2\"]")
 
 
 class ProposerResponseItem(BaseModel):

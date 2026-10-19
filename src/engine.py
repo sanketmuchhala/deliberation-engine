@@ -42,33 +42,53 @@ def normalize(text: str) -> str:
 
 
 def proposal_fingerprint(p_turn: ProposerTurn, assumption_id: str) -> str:
-    """Hash of what the Critic accepts for an assumption: its statement plus every scope item and
-    success criterion tagged with it. Whitespace, case, and order changes do not alter it."""
+    """Hash of what the Critic accepts for an assumption: its statement, every scope item tagged with
+    it, and every success criterion that measures one of those items. Whitespace, case, and order
+    changes do not alter it."""
     statement = next((a.statement for a in p_turn.assumptions if a.assumption_id == assumption_id), "")
+    items = [x for x in p_turn.proposed_scope_in if assumption_id in x.assumption_ids]
+    item_ids = {x.scope_id for x in items}
     dependents = sorted(
-        normalize(text)
-        for text, ids in [(x.item, x.assumption_ids) for x in p_turn.proposed_scope_in]
-        + [(c.criterion, c.assumption_ids) for c in p_turn.success_criteria]
-        if assumption_id in ids
+        [normalize(x.item) for x in items]
+        + [normalize(c.criterion) for c in p_turn.success_criteria if item_ids & set(c.scope_item_ids)]
     )
     return hashlib.sha256("\n".join([normalize(statement), *dependents]).encode()).hexdigest()[:16]
 
 
-def proposer_reference_errors(p_turn: ProposerTurn) -> list[str]:
-    valid = {a.assumption_id for a in p_turn.assumptions}
+def duplicates(ids: list[str]) -> list[str]:
+    return sorted({i for i in ids if ids.count(i) > 1})
+
+
+def proposer_turn_errors(p_turn: ProposerTurn) -> list[str]:
+    """Unique IDs, and every reference pointing at something that exists in this turn."""
     errors = []
-    for kind, text, ids in [("Scope item", x.item, x.assumption_ids) for x in p_turn.proposed_scope_in] + [
-        ("Success criterion", c.criterion, c.assumption_ids) for c in p_turn.success_criteria
+    for kind, ids in [
+        ("assumption IDs", [a.assumption_id for a in p_turn.assumptions]),
+        ("scope IDs", [x.scope_id for x in p_turn.proposed_scope_in]),
+        ("challenge responses", [r.issue_id for r in p_turn.challenge_responses]),
     ]:
-        unknown = sorted(set(ids) - valid)
-        if not ids or unknown:
-            problem = f"references unknown {', '.join(unknown)}" if unknown else "lists no assumption_ids"
-            errors.append(f"{kind} '{text[:60]}' {problem}; use your own assumption IDs ({', '.join(sorted(valid))})")
+        if duplicates(ids):
+            errors.append(f"Duplicate {kind}: {', '.join(duplicates(ids))}; each ID may appear once per turn")
+    for kind, text, refs, valid in [
+        ("Scope item", x.item, x.assumption_ids, {a.assumption_id for a in p_turn.assumptions})
+        for x in p_turn.proposed_scope_in
+    ] + [
+        ("Success criterion", c.criterion, c.scope_item_ids, {x.scope_id for x in p_turn.proposed_scope_in})
+        for c in p_turn.success_criteria
+    ]:
+        unknown = sorted(set(refs) - valid)
+        if not refs or unknown:
+            problem = f"references unknown {', '.join(unknown)}" if unknown else "lists no references"
+            errors.append(f"{kind} '{text[:60]}' {problem}; valid IDs are {', '.join(sorted(valid))}")
     return errors
 
 
-def critic_reference_errors(c_turn: CriticTurn, ledger: dict[str, IssueLedgerEntry], valid: set[str]) -> list[str]:
-    return [
+def critic_turn_errors(c_turn: CriticTurn, ledger: dict[str, IssueLedgerEntry], valid: set[str]) -> list[str]:
+    ids = [ch.issue_id for ch in c_turn.challenges]
+    errors = []
+    if duplicates(ids):
+        errors.append(f"Duplicate issue IDs: {', '.join(duplicates(ids))}; give each issue one entry per turn")
+    return errors + [
         f"New issue {ch.issue_id} targets unknown {ch.target_assumption_id}; "
         f"use a Proposer assumption ID ({', '.join(sorted(valid))})"
         for ch in c_turn.challenges
@@ -76,17 +96,10 @@ def critic_reference_errors(c_turn: CriticTurn, ledger: dict[str, IssueLedgerEnt
     ]
 
 
-def split_by_escalation(
-    items: list[tuple[str, list[str]]], blocking: dict[str, list[str]]
-) -> tuple[list[str], list[PendingItem]]:
-    agreed: list[str] = []
-    pending: list[PendingItem] = []
-    for text, ids in items:
-        blocked_by = sorted({i for aid in ids for i in blocking.get(aid, [])})
-        if blocked_by:
-            pending.append(PendingItem(item=text, blocked_by=blocked_by))
-        else:
-            agreed.append(text)
+def split_pending(items: list[tuple[str, list[str]]]) -> tuple[list[str], list[PendingItem]]:
+    """Split (text, blocking issue IDs) pairs into agreed text and items pending a human decision."""
+    agreed = [text for text, blocked_by in items if not blocked_by]
+    pending = [PendingItem(item=text, blocked_by=blocked_by) for text, blocked_by in items if blocked_by]
     return agreed, pending
 
 
@@ -105,9 +118,10 @@ def build_decision_skeleton(
 ) -> FinalDecisionDocument:
     """Every fact in the decision document, computed from the ledger and the Proposer's final turn.
 
-    Scope and success criteria come from the Proposer's final structured turn; any item that relies
-    on an assumption targeted by an escalated issue is held as pending a human decision. The
-    Summarizer later fills in the prose (executive summary, notes, question wording) and nothing else.
+    Scope and success criteria come from the Proposer's final structured turn. A scope item that relies
+    on an assumption targeted by an escalated issue is held as pending a human decision, and so is
+    every success criterion that measures it. The Summarizer later fills in the prose (executive
+    summary, notes, question wording) and nothing else.
     """
     final = rounds_log[-1]
     proposer = final["proposer"]
@@ -116,12 +130,20 @@ def build_decision_skeleton(
     for e in escalated:
         blocking.setdefault(e.target_assumption_id, []).append(e.issue_id)
 
-    included, pending = split_by_escalation(
-        [(x["item"], x["assumption_ids"]) for x in proposer["proposed_scope_in"]], blocking
+    scope_blocked = {
+        x["scope_id"]: sorted({i for aid in x["assumption_ids"] for i in blocking.get(aid, [])})
+        for x in proposer["proposed_scope_in"]
+    }
+    included, pending = split_pending(
+        [(f"[{x['scope_id']}] {x['item']}", scope_blocked[x["scope_id"]]) for x in proposer["proposed_scope_in"]]
     )
-    criteria, pending_criteria = split_by_escalation(
-        [(c["criterion"], c["assumption_ids"]) for c in proposer["success_criteria"]], blocking
-    )
+    criteria, pending_criteria = split_pending([
+        (
+            f"{c['criterion']} (measures {', '.join(c['scope_item_ids'])})",
+            sorted({i for sid in c["scope_item_ids"] for i in scope_blocked.get(sid, [])}),
+        )
+        for c in proposer["success_criteria"]
+    ])
 
     statements: dict[str, str] = {}
     for record in rounds_log:
@@ -220,7 +242,7 @@ class DeliberationEngine:
     def _call_checked(
         self, model: str, system_prompt: str, user_content: str, schema: type, check, rejected: list[str]
     ):
-        """Ask again once if a turn references IDs that do not exist; fail loudly if it still does."""
+        """Ask again once if a turn has duplicate or dangling IDs; fail loudly if it still does."""
         turn = self._call_structured(model, system_prompt, user_content, schema)
         errors = check(turn)
         if errors:
@@ -229,12 +251,12 @@ class DeliberationEngine:
             turn = self._call_structured(
                 model, system_prompt,
                 f"{user_content}\n\nYOUR PREVIOUS OUTPUT WAS REJECTED BY THE ENGINE:\n{feedback}\n"
-                "Fix these references and answer again.",
+                "Fix these IDs and answer again.",
                 schema,
             )
             errors = check(turn)
             if errors:
-                raise ValueError(f"{schema.__name__} still has invalid references after one retry: {errors}")
+                raise ValueError(f"{schema.__name__} still fails validation after one retry: {errors}")
         return turn
 
     def run(self, feature_request: str, on_round_callback=None) -> tuple[FinalDecisionDocument, dict]:
@@ -255,7 +277,7 @@ class DeliberationEngine:
             )
             rejected: list[str] = []
             p_turn: ProposerTurn = self._call_checked(
-                self.proposer_model, proposer_sys, proposer_ctx, ProposerTurn, proposer_reference_errors, rejected
+                self.proposer_model, proposer_sys, proposer_ctx, ProposerTurn, proposer_turn_errors, rejected
             )
             known_assumptions |= {a.assumption_id for a in p_turn.assumptions}
 
@@ -290,7 +312,7 @@ class DeliberationEngine:
             )
             c_turn: CriticTurn = self._call_checked(
                 self.critic_model, critic_sys, critic_ctx, CriticTurn,
-                lambda turn: critic_reference_errors(turn, ledger, known_assumptions), rejected,
+                lambda turn: critic_turn_errors(turn, ledger, known_assumptions), rejected,
             )
 
             for ch in c_turn.challenges:
@@ -319,7 +341,8 @@ class DeliberationEngine:
                         entry.current_state = ChallengeState.ESCALATED_TO_HUMAN
                         entry.escalation_reason = "POLICY_ESCALATED_BY_CRITIC"
                     else:
-                        entry.rounds_contested += 1
+                        if entry.last_critic_challenge_round != round_no:  # count each round once
+                            entry.rounds_contested += 1
                         entry.last_critic_challenge_round = round_no
                         if entry.proposer_last_move in (ChallengeState.DEFENDED, ChallengeState.REVISED):
                             entry.current_state = entry.proposer_last_move
@@ -386,7 +409,7 @@ class DeliberationEngine:
                 "proposer": p_turn.model_dump(),
                 "critic": c_turn.model_dump(),
                 "ledger_snapshot": {k: v.model_dump() for k, v in ledger.items()},
-                "rejected_references": rejected,
+                "validation_errors": rejected,
                 "disagreement_score": disagreement_score,
                 "termination_reason": termination_reason,
                 "should_stop": should_stop,

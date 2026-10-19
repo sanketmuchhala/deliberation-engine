@@ -79,7 +79,7 @@ def render_markdown(doc: FinalDecisionDocument, ledger: dict[str, dict]) -> str:
 def print_round(r: dict) -> None:
     p, c = r["proposer"], r["critic"]
     assumptions = [f"{a['assumption_id']}: {a['statement']}" for a in p["assumptions"]]
-    scope_in = [f"{s['item']} {s['assumption_ids']}" for s in p["proposed_scope_in"]]
+    scope_in = [f"{s['scope_id']}: {s['item']} {s['assumption_ids']}" for s in p["proposed_scope_in"]]
     console.print(Panel(
         f"[bold cyan]Proposed Scope (In):[/bold cyan] {scope_in}\n"
         f"[bold cyan]Assumptions:[/bold cyan] {assumptions}\n"
