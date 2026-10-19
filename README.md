@@ -1,27 +1,65 @@
 # The Deliberation Engine
 
-A Proposer agent and a Critic agent debate a vague Government CRM feature request until a deterministic Python gate ends the debate. A Summarizer then turns the settled issue ledger into a structured decision document: agreed scope (in and out), surfaced assumptions, and open questions that need a human decision.
+A multi-agent deliberation system that turns a vague stakeholder feature request into an audited, scope-bounded decision document. It is modeled on a Government CRM used across ~100 member countries, where ministry contacts and engagement history are diplomatically sensitive.
+
+## Core idea
+
+Multi-agent LLM loops tend to fail in one of two opposite ways: **sycophantic collapse**, where the agents agree on vague terms almost at once, or **unbounded drift**, where they argue without end or the final summary contradicts what was decided.
+
+This engine keeps a hard boundary between the two kinds of work:
+
+1. **The models supply** proposals, critiques, and explanatory prose.
+2. **Python owns** the issue ledger, the stopping rules, the dependency links, and the structure of the decision document.
+
+The Summarizer cannot drop an escalated risk, invent agreed scope, or skip a human decision. Python builds every list in the document from the ledger; the Summarizer only writes the prose.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    R[Feature request] --> P[Proposer LLM<br/>scope + assumptions]
-    P --> C[Critic LLM<br/>challenges C1..Cn]
-    C --> G{Ledger + gate<br/>Python}
-    G -- continue --> P
-    G -- stop --> S[Summarizer LLM]
-    S --> O[decision_doc.md<br/>sample_trace.json]
+```text
+Feature request
+   │
+   ▼
+┌──────────────────────────────────────────────────────────┐
+│            PYTHON ORCHESTRATOR & ISSUE LEDGER            │
+│  • Validates unique IDs and cross-references (one retry) │
+│  • Fingerprints accepted proposals across rounds         │
+│  • Never stops in round 1; deterministic stopping gate   │
+└───────────┬──────────────────────────────────┬───────────┘
+            │                                  │
+            ▼ round N proposal                 ▼ round N challenges
+   ┌─────────────────┐                ┌─────────────────┐
+   │     PROPOSER    │   structured   │      CRITIC     │
+   │  shippability,  │ ◄────────────► │ confidentiality,│
+   │schema simplicity│   issue moves  │ least privilege,│
+   │  cost vs. risk  │                │ turnover, alerts│
+   └────────┬────────┘                └─────────────────┘
+            │
+            ▼ all issues settled or escalated, or round limit reached
+┌──────────────────────────────────────────────────────────┐
+│            DECISION DOCUMENT BUILDER (Python)            │
+│  • Resolves criterion → scope item → assumption → issue  │
+│  • Splits agreed items from pending human decisions      │
+│  • Merges the Summarizer's prose; logs any mismatch      │
+└──────────────────────────────────────────────────────────┘
+   │
+   ▼
+decision_doc.md + sample_trace.json
 ```
 
-- **Proposer** (`prompts/proposer.md`): proposes a lean v1 scope with explicit assumptions `A1..An`, numbers its in-scope items (`S1..Sn`) and tags each with the assumptions it relies on, links every success criterion to the items it measures, then defends, revises, or concedes each challenge by weighing the cost of the Critic's fix against the risk left if v1 ships without it.
-- **Critic** (`prompts/critic.md`): raises specific challenges `C1..Cn` against those assumptions (confidentiality, least privilege, staff turnover, alert fatigue), then accepts, keeps challenging, or escalates policy questions to humans.
-- **Ledger + gate** (`src/engine.py`): Python owns each issue's state (`CHALLENGED` → `DEFENDED` / `REVISED` / `CONCEDED` → `ACCEPTED` / `ESCALATED_TO_HUMAN`), computes a disagreement score, and decides when to stop. It never stops in round 1, stops once every issue is settled, escalates an issue as deadlocked from round 3 only when the Critic explicitly re-challenges an answer the Proposer gave that same round, reopens an accepted issue if the Proposer later changes the assumption it targets, a scope item tagged with it, or a criterion measuring such an item, rejects turns with duplicate or dangling IDs (one corrective retry, then a hard error), counts each issue's challenge at most once per round, and enforces a `--max-rounds` ceiling that labels one-sided issues (never answered, or answered but never reviewed) separately from real stalemates.
-- **Summarizer** (`prompts/summarizer.md`): writes only prose: the executive summary, assumption notes, and the wording of each open question. Python builds every fact in the document from the ledger and the Proposer's final structured scope: agreed and pending scope and success criteria (a scope item tied to an assumption that an escalated issue targets is held for a human decision, together with every criterion that measures it), exclusions, assumption dispositions, exactly one open question per escalated issue, the metrics, and an issue-ledger table. Any mismatch in the Summarizer's output is logged in the trace as `summary_corrections`.
+## Key guarantees
 
-The reasoning behind the prompts and stopping rules is in [DECISIONS.md](DECISIONS.md).
+- **Opposing incentives (`prompts/`):** The Proposer optimizes for shippability, schema simplicity, and no extra data entry for Regional Coordinators. The Critic reviews for diplomatic confidentiality, least privilege, staff turnover, and alert fatigue. The Proposer weighs each objection with a cost-versus-residual-risk rubric rather than a defense quota.
+- **Deterministic stopping (`src/engine.py`):** Python moves each issue through `CHALLENGED` → `DEFENDED` / `REVISED` / `CONCEDED` → `ACCEPTED` / `ESCALATED_TO_HUMAN` and computes a disagreement score every round. It never stops in round 1 and stops once every issue is settled. From round 3 it escalates an issue as deadlocked only when the Critic re-challenges an answer the Proposer gave that same round. At `--max-rounds` it escalates whatever is still open, labeling one-sided issues (never answered, or answered but never reviewed) separately from real stalemates.
+- **Dependency chain:** `success criterion → scope item → assumption → escalated issue`. Scope items (`S1..Sn`) are tagged with the assumptions they rely on, and each success criterion links to the scope items it measures. When an issue is escalated, every scope item tagged with its assumption, and every criterion measuring those items, moves to a **Pending Human Decision** list.
+- **Acceptance fingerprints:** An acceptance is bound to a normalized fingerprint of the targeted assumption, the scope items tagged with it, and the criteria measuring them. If the Proposer later changes any of these, the issue reopens for the Critic.
+- **Turn validation with one corrective retry:** Every turn is checked for unique IDs and for references that point at real assumptions and scope items. A failing turn gets one retry that names the bad IDs; if it still fails, the run stops with an error. A challenge counts at most once per issue per round.
+- **Python-built document:** The Summarizer returns only the executive summary, assumption notes, and question wording. Any mismatch with the ledger is logged in the trace as `summary_corrections`.
 
-## Setup (Python 3.9+)
+The reasoning behind these choices, and what I would change next, is in [DECISIONS.md](DECISIONS.md).
+
+## Quick start
+
+### 1. Install (Python 3.9+)
 
 ```bash
 python3 -m venv .venv
@@ -30,32 +68,27 @@ pip install -r requirements.txt
 cp .env.example .env   # then put your OpenRouter key in LLM_API_KEY
 ```
 
-| Variable | Value in `.env.example` |
-|---|---|
-| `LLM_API_KEY` | your OpenRouter API key |
-| `LLM_BASE_URL` | `https://openrouter.ai/api/v1` |
-| `PROPOSER_MODEL`, `CRITIC_MODEL`, `SUMMARIZER_MODEL` | `anthropic/claude-sonnet-5.5` |
+`.env.example` points `LLM_BASE_URL` at OpenRouter and sets `PROPOSER_MODEL`, `CRITIC_MODEL`, and `SUMMARIZER_MODEL` to `anthropic/claude-sonnet-5.5`. Any OpenAI-compatible endpoint works, as long as its models support structured outputs (JSON schema).
 
-Any OpenAI-compatible endpoint works, as long as the models support structured outputs (JSON schema).
-
-## Usage
+### 2. Run
 
 ```bash
-python3 -m src.main --request "We need a better way to track who is the right person to contact in each country."
+python3 -m src.main                                      # runs official example 1
+python3 -m src.main --request "The CRM should alert us when our relationship with a country goes cold."
 python3 -m src.main --config config.example.json         # reads "feature_request" from the JSON file
 python3 -m src.main --request "..." --max-rounds 5       # default 4, minimum 2
 python3 -m src.main --request "..." --output-dir runs/   # default outputs/
 ```
 
-With neither `--request` nor `--config`, it runs official example 1. Each round prints a Proposer panel and a Critic panel with the disagreement score and gate status. At the end it prints the decision document and writes `decision_doc.md` and `sample_trace.json` to the output directory.
+Each round prints a Proposer panel and a Critic panel with the disagreement score and gate status. The run ends by printing the decision document and writing `decision_doc.md` and `sample_trace.json` to the output directory.
 
-## Tests
+### 3. Test
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-Eighteen offline state-machine tests drive the engine with scripted Proposer and Critic turns (no API key needed). They cover convergence, deadlock escalation, the round-3 reply window, deadlock requiring a fresh rejection, terminal-state locking, reopening when an accepted assumption or its tagged scope changes, rejection of duplicate and dangling IDs with one corrective retry, single counting of challenges per round, concession handling, the gate-close fallback, the max-rounds labels, and a deliberately wrong Summarizer draft that cannot change any ledger fact.
+Eighteen offline tests drive the engine with scripted Proposer and Critic turns, so no API key is needed. They cover convergence, deadlock and the round-3 reply window, terminal-state locking, fingerprint reopening, the dependency chain, duplicate and dangling IDs with the corrective retry, single counting per round, concession handling, the max-rounds labels, and a deliberately wrong Summarizer draft that cannot change any ledger fact.
 
 ## Golden runs (`outputs/`)
 
@@ -70,8 +103,11 @@ All three ended with `CONVERGENCE_ALL_ISSUES_RESOLVED_OR_ESCALATED (CRITIC_SIGNA
 ## Layout
 
 ```text
-prompts/   proposer.md, critic.md, summarizer.md
-src/       schemas.py (Pydantic contracts, state weights), engine.py (loop, ledger, gate), main.py (CLI)
-tests/     test_engine.py (offline state-machine tests)
-outputs/   golden runs
+DECISIONS.md          design reasoning: prompts, termination, trade-offs
+config.example.json   example input for --config
+.env.example          endpoint and model settings (copy to .env)
+prompts/              proposer.md, critic.md, summarizer.md
+src/                  schemas.py (Pydantic contracts), engine.py (ledger, gate, validation, document builder), main.py (CLI)
+tests/                test_engine.py (18 offline state-machine tests)
+outputs/              golden runs: example1_*, example2_*, example3_*, plus sample_trace.json and decision_doc.md
 ```
